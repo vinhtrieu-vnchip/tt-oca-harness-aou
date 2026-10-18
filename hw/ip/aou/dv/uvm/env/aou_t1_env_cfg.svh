@@ -36,6 +36,13 @@ class aou_t1_env_cfg extends uvm_object;
   int unsigned   l1_gap_pct = 10;
   bit            l1_cancel_mix = 1'b0;     // cancel plans over every shape, repeats included
 
+  // Directed semantic-cancel qualification; 0 disables the checker.
+  int unsigned   cancel_sem_mode = 0; // 1=H0/IDLE, 2=H0/VALID, 3=H1/IDLE, 4=delivered control
+  bit [9:0]      cancel_sem_original_id = 10'h3A1;
+  bit [63:0]     cancel_sem_original_addr = 64'h0000_0000_5A00_0000;
+  bit [9:0]      cancel_sem_poison_id = 10'h3FE;
+  bit [63:0]     cancel_sem_poison_addr = 64'h0000_0000_FF00_1000;
+
   // Check enables
   bit            sb_en = 1'b1;
   // aou_t1_attr_chk: request attributes, exclusive responses and FLEX across the link.

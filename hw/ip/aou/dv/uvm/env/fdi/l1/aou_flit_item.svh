@@ -17,6 +17,8 @@ class aou_flit_item extends uvm_sequence_item;
   `uvm_object_utils(aou_flit_item)
 
   bit [7:0]             data[FLIT_BYTES];
+  bit [7:0]             cancel_payload[FLIT_BYTES] = '{default:8'h00};
+  bit                   cancel_payload_valid = 1'b0;
   int unsigned          phy = 0;
   aou_fdi_dir_e         dir = AOU_FDI_RX;
 
@@ -105,6 +107,22 @@ class aou_flit_item extends uvm_sequence_item;
 
   function void copy_data(aou_flit_item rhs);
     data = rhs.data;
+  endfunction
+
+  virtual function void do_copy(uvm_object rhs);
+    aou_flit_item r;
+    super.do_copy(rhs);
+    if (!$cast(r, rhs)) `uvm_fatal(get_type_name(), "do_copy: type mismatch")
+    data = r.data;
+    cancel_payload = r.cancel_payload;
+    cancel_payload_valid = r.cancel_payload_valid;
+  endfunction
+
+  function aou_fdi_beat_t get_cancel_beat(int unsigned beat_bytes, int unsigned idx);
+    aou_fdi_beat_t b = '0;
+    for (int unsigned i = 0; i < beat_bytes; i++)
+      b[8*i +: 8] = cancel_payload[idx*beat_bytes + i];
+    return b;
   endfunction
 
   // A cancel plan drawn evenly over the four shapes above (first half,

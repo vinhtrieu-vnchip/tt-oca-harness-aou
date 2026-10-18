@@ -18,6 +18,7 @@
 `include "aou_t1_inject_test.svh"
 `include "aou_t1_sw_reset_test.svh"
 `include "aou_t1_hard_reset_test.svh"
+`include "aou_t1_cancel_sem_test.svh"
 `include "aou_dpf_tests.svh"
 `include "stress/stress_tests.svh"
 `include "link/link_tests.svh"

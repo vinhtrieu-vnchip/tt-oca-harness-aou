@@ -33,6 +33,7 @@ class aou_t1_env extends uvm_env;
   aou_t1_sw_reset_chk  sw_rst_chk;
   aou_t1_dbg_fifo_chk  dbg_chk;
   aou_t1_act_chk       act_chk;
+  aou_t1_cancel_sem_chk cancel_sem_chk;
   aou_t1_crd_flow_chk  crd_chk;
   aou_t1_crd_rr_chk    crd_rr;
   aou_t1_early_tbl_chk early_tbl;
@@ -108,6 +109,10 @@ class aou_t1_env extends uvm_env;
     dbg_chk = aou_t1_dbg_fifo_chk::type_id::create("dbg_chk", this);
     dbg_chk.cfg = cfg;
     act_chk = aou_t1_act_chk::type_id::create("act_chk", this);
+    if (cfg.cancel_sem_mode != 0) begin
+      cancel_sem_chk = aou_t1_cancel_sem_chk::type_id::create("cancel_sem_chk", this);
+      cancel_sem_chk.cfg = cfg;
+    end
     crd_chk = aou_t1_crd_flow_chk::type_id::create("crd_chk", this);
     crd_chk.cfg = cfg;
     crd_rr = aou_t1_crd_rr_chk::type_id::create("crd_rr", this);
@@ -160,6 +165,10 @@ class aou_t1_env extends uvm_env;
     vseqr.apb_sqr = regs.apb.sqr;
     vseqr.regs = regs.model;
     foreach (m_sub[r]) m_sub[r].ap.connect(dbg_chk.mport_imp);
+    if (cancel_sem_chk != null) begin
+      foreach (m_sub[r]) m_sub[r].ap.connect(cancel_sem_chk.mport_imp);
+      foreach (fdi[p]) fdi[p].mon.ap_rx.connect(cancel_sem_chk.rxflit_imp);
+    end
     rmgr.ap.connect(dbg_chk.remote_imp);
     dbg_chk.rm = regs.model;
     dbg_chk.clk_vif = m_sub[0].cfg.vif;
@@ -224,6 +233,7 @@ class aou_t1_env extends uvm_env;
   task run_phase(uvm_phase phase);
     pump = aou_t1_l1_pump_seq::type_id::create("pump");
     pump.l3 = l3;
+    pump.cfg = cfg;
     pump.cancel_pct = cfg.l1_cancel_pct;
     pump.bubble_pct = cfg.l1_bubble_pct;
     pump.gap_pct = cfg.l1_gap_pct;

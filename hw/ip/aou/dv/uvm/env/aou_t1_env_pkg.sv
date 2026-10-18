@@ -161,6 +161,8 @@ package aou_t1_env_pkg;
   `uvm_analysis_imp_decl(_act_txflit)
   `uvm_analysis_imp_decl(_act_rxflit)
   `uvm_analysis_imp_decl(_act_rxmsg)
+  `uvm_analysis_imp_decl(_cancel_mport)
+  `uvm_analysis_imp_decl(_cancel_rxflit)
 
   `include "aou_t1_traffic_cfg.svh"
   `include "aou_t1_feature_cfg.svh"
@@ -184,6 +186,7 @@ package aou_t1_env_pkg;
   `include "aou_t1_sw_reset_chk.svh"
   `include "aou_t1_dbg_fifo_chk.svh"
   `include "aou_t1_act_chk.svh"
+  `include "aou_t1_cancel_sem_chk.svh"
   `include "aou_t1_env_fc_bins.svh"
   `include "aou_t1_crd_flow_chk.svh"
   `include "aou_t1_crd_rr_chk.svh"

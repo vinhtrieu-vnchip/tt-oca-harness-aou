@@ -269,3 +269,4 @@ T1-RM04,aou_t1_remote_mgr_driver,,DUT,ReadData LAST is set on the last beat of a
 T1-RM05,aou_t1_remote_mgr_driver,,DUT,No remote write or read is outstanding at the end of the test,ARCHITECTURE.md scoreboard rule
 T1-RM06,aou_t1_remote_mgr,,DUT,A WriteResp/ReadData the DUT sends carries an RP below the remote managers' plane count,AoU 6.4.1; MAS 3.10
 T1-L4A01,aou_t1_l4a_adapter,,DUT,Every WriteData beat of one write burst carries the same DLENGTH,MAS 3.5.2
+T1-L48,aou_t1_cancel_sem_chk,,DUT,A canceled ReadReq payload is not consumed at the M-port before the original ReadReq is replayed and completed; delivered poison control proves detector sensitivity,UCIe r1.1 Table 8-2; plan 18.24

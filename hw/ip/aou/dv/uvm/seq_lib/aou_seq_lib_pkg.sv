@@ -28,6 +28,7 @@ package aou_seq_lib_pkg;
   `include "aou_t1_inject_vseq.svh"
   `include "aou_t1_sw_reset_vseq.svh"
   `include "aou_t1_hard_reset_vseq.svh"
+  `include "aou_t1_cancel_sem_seq.svh"
   `include "aou_dpf_seqs.svh"
   `include "stress/stress_seqs.svh"
   `include "link/link_seqs.svh"

@@ -318,7 +318,7 @@ tests = [
 # Every runnable T1 scenario; run_list.py skips entries whose target differs
 [[groups]]
 name = "all"
-expected_count = 405
+expected_count = 417
 tests = [
   "aou_sanity_test",
   "aou_t1_slice_test",
@@ -352,6 +352,18 @@ tests = [
   "aou_dp_random_test.dp_dir-both.active_phy-1.park_idle_phy-1.fdi_trdy-holes.fdi_stall_pct-5.fdi_stall_mid_pct-50.2x512-tp32_64",
   "aou_link_event_test.event-l1.active_phy-1.park_idle_phy-1.2x512-tp32_64",
   "aou_link_event_test.event-retrain.active_phy-1.park_idle_phy-1.2x512-tp32_64",
+  "aou_t1_cancel_sem_test.cancel_mode-4.1x256-sp32",
+  "aou_t1_cancel_sem_test.cancel_mode-1.1x256-sp32",
+  "aou_t1_cancel_sem_test.cancel_mode-2.1x256-sp32",
+  "aou_t1_cancel_sem_test.cancel_mode-3.1x256-sp32",
+  "aou_t1_cancel_sem_test.cancel_mode-4.1x512-sp64",
+  "aou_t1_cancel_sem_test.cancel_mode-1.1x512-sp64",
+  "aou_t1_cancel_sem_test.cancel_mode-2.1x512-sp64",
+  "aou_t1_cancel_sem_test.cancel_mode-3.1x512-sp64",
+  "aou_t1_cancel_sem_test.cancel_mode-4.4xmix4211-sp128",
+  "aou_t1_cancel_sem_test.cancel_mode-1.4xmix4211-sp128",
+  "aou_t1_cancel_sem_test.cancel_mode-2.4xmix4211-sp128",
+  "aou_t1_cancel_sem_test.cancel_mode-3.4xmix4211-sp128",
   "aou_dp_size_test.dp_size-0_1_2_3_4_5_6",
   "aou_dp_size_test.dp_size-7.remote_bytes-128.dp_dir-r2l",
   "aou_dp_size_test.dp_size-6.dp_len-1.dp_dir-l2r",

@@ -177,6 +177,116 @@ tags = ["fdi"]
 run_modes = ["fdi"]
 args = ["+event=retrain", "+active_phy=1", "+park_idle_phy=1"]
 
+# Semantic cancel qualification: the checker observes completed M-port AXI
+# reads and receive-side cancel telemetry; mode 4 is the delivered poison control.
+[[tests]]
+name = "aou_t1_cancel_sem_test.cancel_mode-4.1x256-sp32"
+module = { uvm = "aou_t1_cancel_sem_test" }
+target = "1x256-sp32"
+seed = 1
+tags = ["fdi"]
+run_modes = ["fdi"]
+args = ["+cancel_sem_mode=4"]
+
+[[tests]]
+name = "aou_t1_cancel_sem_test.cancel_mode-1.1x256-sp32"
+module = { uvm = "aou_t1_cancel_sem_test" }
+target = "1x256-sp32"
+seed = 1
+tags = ["fdi"]
+run_modes = ["fdi"]
+args = ["+cancel_sem_mode=1"]
+
+[[tests]]
+name = "aou_t1_cancel_sem_test.cancel_mode-2.1x256-sp32"
+module = { uvm = "aou_t1_cancel_sem_test" }
+target = "1x256-sp32"
+seed = 1
+tags = ["fdi"]
+run_modes = ["fdi"]
+args = ["+cancel_sem_mode=2"]
+
+[[tests]]
+name = "aou_t1_cancel_sem_test.cancel_mode-3.1x256-sp32"
+module = { uvm = "aou_t1_cancel_sem_test" }
+target = "1x256-sp32"
+seed = 1
+tags = ["fdi"]
+run_modes = ["fdi"]
+args = ["+cancel_sem_mode=3"]
+
+[[tests]]
+name = "aou_t1_cancel_sem_test.cancel_mode-4.1x512-sp64"
+module = { uvm = "aou_t1_cancel_sem_test" }
+target = "1x512-sp64"
+seed = 1
+tags = ["fdi"]
+run_modes = ["fdi"]
+args = ["+cancel_sem_mode=4"]
+
+[[tests]]
+name = "aou_t1_cancel_sem_test.cancel_mode-1.1x512-sp64"
+module = { uvm = "aou_t1_cancel_sem_test" }
+target = "1x512-sp64"
+seed = 1
+tags = ["fdi"]
+run_modes = ["fdi"]
+args = ["+cancel_sem_mode=1"]
+
+[[tests]]
+name = "aou_t1_cancel_sem_test.cancel_mode-2.1x512-sp64"
+module = { uvm = "aou_t1_cancel_sem_test" }
+target = "1x512-sp64"
+seed = 1
+tags = ["fdi"]
+run_modes = ["fdi"]
+args = ["+cancel_sem_mode=2"]
+
+[[tests]]
+name = "aou_t1_cancel_sem_test.cancel_mode-3.1x512-sp64"
+module = { uvm = "aou_t1_cancel_sem_test" }
+target = "1x512-sp64"
+seed = 1
+tags = ["fdi"]
+run_modes = ["fdi"]
+args = ["+cancel_sem_mode=3"]
+
+[[tests]]
+name = "aou_t1_cancel_sem_test.cancel_mode-4.4xmix4211-sp128"
+module = { uvm = "aou_t1_cancel_sem_test" }
+target = "4xmix4211-sp128"
+seed = 1
+tags = ["fdi"]
+run_modes = ["fdi"]
+args = ["+cancel_sem_mode=4"]
+
+[[tests]]
+name = "aou_t1_cancel_sem_test.cancel_mode-1.4xmix4211-sp128"
+module = { uvm = "aou_t1_cancel_sem_test" }
+target = "4xmix4211-sp128"
+seed = 1
+tags = ["fdi"]
+run_modes = ["fdi"]
+args = ["+cancel_sem_mode=1"]
+
+[[tests]]
+name = "aou_t1_cancel_sem_test.cancel_mode-2.4xmix4211-sp128"
+module = { uvm = "aou_t1_cancel_sem_test" }
+target = "4xmix4211-sp128"
+seed = 1
+tags = ["fdi"]
+run_modes = ["fdi"]
+args = ["+cancel_sem_mode=2"]
+
+[[tests]]
+name = "aou_t1_cancel_sem_test.cancel_mode-3.4xmix4211-sp128"
+module = { uvm = "aou_t1_cancel_sem_test" }
+target = "4xmix4211-sp128"
+seed = 1
+tags = ["fdi"]
+run_modes = ["fdi"]
+args = ["+cancel_sem_mode=3"]
+
 [[tests]]
 name = "aou_t1_slice_test.active_phy-1.park_idle_phy-1.2x512-tp32_64"
 module = { uvm = "aou_t1_slice_test" }
@@ -217,7 +327,7 @@ args = ["+event=retrain", "+active_phy=1", "+park_idle_phy=1"]
 
 [[groups]]
 name = "fdi"
-expected_count = 19
+expected_count = 31
 tests = [
   "aou_dp_random_test.dp_dir-both.fdi_trdy-holes.fdi_stall_pct-5.fdi_stall_mid_pct-60.fdi_stall_trdy_free-1",
   "aou_stress_test.st_pol-random.st_crd-slow.fdi_trdy-random.fdi_stall_pct-8.fdi_stall_mid_pct-50",
@@ -238,4 +348,16 @@ tests = [
   "aou_dp_random_test.dp_dir-both.active_phy-1.park_idle_phy-1.fdi_trdy-holes.fdi_stall_pct-5.fdi_stall_mid_pct-50.2x512-tp32_64",
   "aou_link_event_test.event-l1.active_phy-1.park_idle_phy-1.2x512-tp32_64",
   "aou_link_event_test.event-retrain.active_phy-1.park_idle_phy-1.2x512-tp32_64",
+  "aou_t1_cancel_sem_test.cancel_mode-4.1x256-sp32",
+  "aou_t1_cancel_sem_test.cancel_mode-1.1x256-sp32",
+  "aou_t1_cancel_sem_test.cancel_mode-2.1x256-sp32",
+  "aou_t1_cancel_sem_test.cancel_mode-3.1x256-sp32",
+  "aou_t1_cancel_sem_test.cancel_mode-4.1x512-sp64",
+  "aou_t1_cancel_sem_test.cancel_mode-1.1x512-sp64",
+  "aou_t1_cancel_sem_test.cancel_mode-2.1x512-sp64",
+  "aou_t1_cancel_sem_test.cancel_mode-3.1x512-sp64",
+  "aou_t1_cancel_sem_test.cancel_mode-4.4xmix4211-sp128",
+  "aou_t1_cancel_sem_test.cancel_mode-1.4xmix4211-sp128",
+  "aou_t1_cancel_sem_test.cancel_mode-2.4xmix4211-sp128",
+  "aou_t1_cancel_sem_test.cancel_mode-3.4xmix4211-sp128",
 ]

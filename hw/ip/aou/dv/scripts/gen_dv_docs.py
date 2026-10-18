@@ -148,8 +148,9 @@ def gen_summary(benches):
                 xf = e["expect_fail"]
                 if e["blocked"]:
                     xf = f"blocked: {e['blocked']}"
-                out.append(f"| {code(e['name'])} | {code(e['test'])} | {code(e['plusargs'])} | {seeds} | "
-                           f"{code(e['target'])} | {cell(e['plan_ids'])} | {cell(xf)}\n")
+                row = (f"| {code(e['name'])} | {code(e['test'])} | {code(e['plusargs'])} | {seeds} | "
+                       f"{code(e['target'])} | {cell(e['plan_ids'])} | {cell(xf)}")
+                out.append(row.rstrip() + "\n")
             out.append("|===\n")
     return "".join(out)
 

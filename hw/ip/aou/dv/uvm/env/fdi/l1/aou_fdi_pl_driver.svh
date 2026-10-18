@@ -112,7 +112,9 @@ class aou_fdi_pl_driver extends uvm_driver #(aou_flit_item);
         end
         vif.drv_cb.pl_valid <= 1'b1;
         vif.drv_cb.pl_flit_cancel <= cancel_next;
-        vif.drv_cb.pl_data <= (cancelled && cfg.poison_cancelled) ?
+        if (cancelled && it.cancel_payload_valid)
+          vif.drv_cb.pl_data <= it.get_cancel_beat(cfg.beat_bytes, idx);
+        else vif.drv_cb.pl_data <= (cancelled && cfg.poison_cancelled) ?
                               poison.get_beat(cfg.beat_bytes, idx) :
                               it.get_beat(cfg.beat_bytes, idx);
         cancel_next = 1'b0;
