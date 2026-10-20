@@ -16,6 +16,17 @@ class aou_axi_monitor extends uvm_monitor;
   int unsigned n_b_zero;  // B valid in the cycle after the write's last AW/W handshake
   int unsigned n_r_zero;  // first R valid in the cycle after the AR handshake
 
+  // Sampled, checker-enabled AXI observations for scenario-specific non-vacuity.
+  // Counters are scoped to the most recent bus-reset epoch; no link-loss signal is
+  // present on this AXI interface, so link-loss qualification stays scenario-owned.
+  int unsigned observation_epoch;
+  int unsigned n_handshakes[AOU_AXI_CH_COUNT];
+  int unsigned n_stall_entries[AOU_AXI_CH_COUNT];
+  int unsigned n_sustained_stall_cycles[AOU_AXI_CH_COUNT];
+  int unsigned n_stall_releases[AOU_AXI_CH_COUNT];
+  int unsigned n_stall_aborts[AOU_AXI_CH_COUNT];
+  int unsigned n_stability_activations[AOU_AXI_CH_COUNT];
+
   protected aou_axi_vif_t vif;
   protected longint unsigned cyc;
   protected bit [1023:0] data_mask;
@@ -49,6 +60,10 @@ class aou_axi_monitor extends uvm_monitor;
   protected logic [1152:0] p_w;
   protected logic [11:0] p_b;
   protected logic [1036:0] p_r;
+  protected bit            stall_active[AOU_AXI_CH_COUNT];
+  protected bit            in_bus_reset;
+  protected bit            prior_checks_enabled;
+  protected bit            stability_obs_enabled;
 
   // Sampled values for the covergroups.
   protected bit       cv_is_rd;
@@ -121,6 +136,7 @@ class aou_axi_monitor extends uvm_monitor;
     vif       = cfg.vif;
     data_mask = {1024{1'b1}} >> (1024 - 8 * cfg.data_bytes);
     strb_mask = {128{1'b1}} >> (128 - cfg.data_bytes);
+    void'($value$plusargs("aou_axi_stability_obs=%d", stability_obs_enabled));
   endfunction
 
   function int unsigned outstanding();
@@ -132,9 +148,23 @@ class aou_axi_monitor extends uvm_monitor;
       @(vif.mon_cb);
       cyc++;
       if (vif.mon_cb.resetn !== 1'b1) begin
+        if (!in_bus_reset) begin
+          observation_epoch++;
+          clear_observations();
+        end
+        in_bus_reset = 1'b1;
+        prior_checks_enabled = 1'b0;
         clear();
       end else begin
-        if (cfg.checks_en) check_stable();
+        in_bus_reset = 1'b0;
+        if (cfg.checks_en) begin
+          observe_cycle();
+          check_stable();
+          prior_checks_enabled = 1'b1;
+        end else begin
+          foreach (stall_active[c]) stall_active[c] = 1'b0;
+          prior_checks_enabled = 1'b0;
+        end
         sample_cycle();
         save_prev();
       end
@@ -152,6 +182,63 @@ class aou_axi_monitor extends uvm_monitor;
     `uvm_info(get_type_name(), $sformatf(
         "%0d writes, %0d reads, %0d zero-cycle B, %0d zero-cycle R", n_wr, n_rd, n_b_zero,
         n_r_zero), UVM_LOW)
+    if (stability_obs_enabled) report_stability_observations();
+  endfunction
+
+  protected function void clear_observations();
+    foreach (n_handshakes[c]) begin
+      n_handshakes[c] = 0;
+      n_stall_entries[c] = 0;
+      n_sustained_stall_cycles[c] = 0;
+      n_stall_releases[c] = 0;
+      n_stall_aborts[c] = 0;
+      n_stability_activations[c] = 0;
+      stall_active[c] = 1'b0;
+    end
+  endfunction
+
+  protected function void observe_cycle();
+    observe_channel(AOU_AXI_CH_AW, vif.mon_cb.awvalid, vif.mon_cb.awready);
+    observe_channel(AOU_AXI_CH_W,  vif.mon_cb.wvalid,  vif.mon_cb.wready);
+    observe_channel(AOU_AXI_CH_B,  vif.mon_cb.bvalid,  vif.mon_cb.bready);
+    observe_channel(AOU_AXI_CH_AR, vif.mon_cb.arvalid, vif.mon_cb.arready);
+    observe_channel(AOU_AXI_CH_R,  vif.mon_cb.rvalid,  vif.mon_cb.rready);
+
+    // These are the exact prior-cycle stalled antecedents evaluated by R01-R05.
+    if (prior_checks_enabled) begin
+      if (p_awvalid === 1'b1 && p_awready === 1'b0) n_stability_activations[AOU_AXI_CH_AW]++;
+      if (p_wvalid  === 1'b1 && p_wready  === 1'b0) n_stability_activations[AOU_AXI_CH_W]++;
+      if (p_bvalid  === 1'b1 && p_bready  === 1'b0) n_stability_activations[AOU_AXI_CH_B]++;
+      if (p_arvalid === 1'b1 && p_arready === 1'b0) n_stability_activations[AOU_AXI_CH_AR]++;
+      if (p_rvalid  === 1'b1 && p_rready  === 1'b0) n_stability_activations[AOU_AXI_CH_R]++;
+    end
+  endfunction
+
+  protected function void observe_channel(aou_axi_ch_e ch, logic valid, logic ready);
+    if (valid === 1'b1 && ready === 1'b1) begin
+      n_handshakes[ch]++;
+      if (stall_active[ch]) n_stall_releases[ch]++;
+      stall_active[ch] = 1'b0;
+    end else if (valid === 1'b1 && ready === 1'b0) begin
+      if (stall_active[ch]) n_sustained_stall_cycles[ch]++;
+      else n_stall_entries[ch]++;
+      stall_active[ch] = 1'b1;
+    end else begin
+      if (stall_active[ch]) n_stall_aborts[ch]++;
+      stall_active[ch] = 1'b0;
+    end
+  endfunction
+
+  protected function void report_stability_observations();
+    for (int unsigned c = 0; c < AOU_AXI_CH_COUNT; c++)
+      `uvm_info(get_type_name(), $sformatf(
+          {"DG05 monitor=%s RP%0d epoch=%0d ch=%s handshakes=%0d ",
+           "stall_entries=%0d sustained_stall_cycles=%0d releases=%0d ",
+           "aborted_stalls=%0d stability_checks=%0d checks_en=%0b"},
+          get_full_name(), cfg.rp, observation_epoch, aou_axi_ch_name(aou_axi_ch_e'(c)),
+          n_handshakes[c],
+          n_stall_entries[c], n_sustained_stall_cycles[c], n_stall_releases[c],
+          n_stall_aborts[c], n_stability_activations[c], cfg.checks_en), UVM_LOW)
   endfunction
 
   // Reset contract. bus_reset (the port's own reset): forget in-flight
