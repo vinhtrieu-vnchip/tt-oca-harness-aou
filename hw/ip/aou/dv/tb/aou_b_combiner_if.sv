@@ -290,7 +290,7 @@ interface aou_b_combiner_if (
       identity_observer_reset_seen = 1'b1;
     end else begin
       identity_observer_reset_seen = 1'b0;
-      if (!armed) begin
+      begin
         source_pop = src_valid & src_ready & src_credit_valid;
         source_count = bit_count(source_pop);
         in_accept = global_in_valid && global_in_ready;
@@ -346,10 +346,12 @@ interface aou_b_combiner_if (
                    IDENTITY_QUEUE_DEPTH);
           end else begin
             identity_pending[identity_queue_tail] = '{identity_epoch,
-                identity_observer_producers, producer_item.source_rp, global_out_rp,
+                identity_next_sequence, producer_item.source_rp, global_out_rp,
                 global_out_bid, global_out_bresp};
             identity_queue_tail = (identity_queue_tail + 1) % IDENTITY_QUEUE_DEPTH;
             identity_queue_count++;
+            identity_next_sequence++;
+            identity_producer_count++;
             identity_observer_producers++;
           end
         end
@@ -475,7 +477,6 @@ interface aou_b_combiner_if (
     bit source_pushed[4];
     b_item_t item;
     expected_item_t expected_item;
-    identity_record_t identity_item;
     int unsigned selected_source;
 
     if (!rst_n) begin
@@ -601,25 +602,12 @@ interface aou_b_combiner_if (
                    {global_out_rp, global_out_bid, global_out_bresp});
           end
         end
-        identity_item = '{identity_epoch, identity_next_sequence, expected_item.source_rp,
-                          global_out_rp, global_out_bid, global_out_bresp};
         if (3'(expected_item.source_rp) >= active_rp_count ||
             src_dest_rp[expected_item.source_rp] !== global_out_rp) begin
           errors++;
           $error("DG04-ID01: source RP %0d does not map to global B wire RP %0d",
                  expected_item.source_rp, global_out_rp);
         end
-        if (identity_queue_count >= IDENTITY_QUEUE_DEPTH) begin
-          errors++;
-          $error("DG04-ID01: identity reference queue overflow depth=%0d",
-                 IDENTITY_QUEUE_DEPTH);
-        end else begin
-          identity_pending[identity_queue_tail] = identity_item;
-          identity_queue_tail = (identity_queue_tail + 1) % IDENTITY_QUEUE_DEPTH;
-          identity_queue_count++;
-        end
-        identity_next_sequence++;
-        identity_producer_count++;
         global_dequeues++;
         ring_b_enqueues++;
       end
