@@ -17,7 +17,7 @@ name: UVM Smoke
 on:
   pull_request:
   push:
-    branches: [main, design]
+    branches: [main, design, 'staging/**']
 
 permissions:
   contents: read
