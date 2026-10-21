@@ -1,0 +1,31 @@
+# Standalone DG04 correlation-checker negative controls. These mutate only the
+# checker model and remain separate from the positive production diagnostic.
+schema_version = 1
+
+[[tests]]
+name = "aou_b_identity_negative_test.2xmix-tp64_128"
+module = { uvm = "aou_b_identity_negative_test" }
+target = "2xmix-tp64_128"
+seed = 1
+tags = ["dg04_diagnostic", "checker_negative_control"]
+run_modes = ["matrix"]
+
+# This intentionally reaches the full production subscriber and grader. The
+# job must report FAIL with the DG04-ID01 order/tuple mismatch from the single
+# corruption injected between L3 decode and the identity checker's analysis port.
+[[tests]]
+name = "aou_b_combiner_test.corrupt_wresp.2xmix-tp64_128"
+module = { uvm = "aou_b_combiner_test" }
+target = "2xmix-tp64_128"
+seed = 1
+tags = ["dg04_diagnostic", "production_checker_negative_control"]
+run_modes = ["matrix"]
+args = ["+mrp_scn=b_combiner", "+mrp_rps=0,1", "+dg04_corrupt_wresp=1"]
+
+[[groups]]
+name = "dg04_identity_controls"
+expected_count = 2
+tests = [
+  "aou_b_identity_negative_test.2xmix-tp64_128",
+  "aou_b_combiner_test.corrupt_wresp.2xmix-tp64_128",
+]
