@@ -41,6 +41,8 @@ TEST_DIRS = {
 }
 CLASS_RE = re.compile(r"^\s*class\s+(\w+)\s+extends", re.M)
 ESCAPE_KEYS = {"test", "escape", "tb", "target", "args", "seed", "reseed", "build", "signature", "note"}
+DIAGNOSTIC_ONLY_T1_LISTS = (
+    "dg04_diagnostic.toml", "dg04_identity_controls.toml", "dg05_diagnostic.toml")
 
 
 def test_dirs(tb):
@@ -60,7 +62,8 @@ def test_classes(tb):
     return out
 
 
-def check_bench(tb, side, problems, path_override=None, require_plan=False):
+def check_bench(tb, side, problems, path_override=None, require_plan=False,
+                diagnostic_t1_scenarios=None):
     cfg = sim_cfg.load(tb)
     aggregate_path = os.path.join(UVM_ROOT, cfg.get("testlist", {}).get("path", ""))
     path = path_override or aggregate_path
@@ -113,9 +116,62 @@ def check_bench(tb, side, problems, path_override=None, require_plan=False):
         for n in names:
             if n not in tests:
                 problems.append(f"{tag}: group {g}: member {n} is not a scenario")
+    for name in list(side["plan_ids"]) + list(side["blocked"]):
+        known_t1 = set(tests) | (diagnostic_t1_scenarios or set())
+        if path_override is None and tb == "t1" and name not in known_t1 and not any(name in testlist.load(os.path.join(
+                UVM_ROOT, sim_cfg.load(b).get("testlist", {}).get("path", "")))[0]
+                for b in ("reg", "l3_unit", "axi_selftest")):
+            problems.append(f"plan_ids.yaml: {name} is not a scenario of any aggregate")
     print(f"check_testlists: {tag}: {len(tests)} scenarios, {len(groups)} groups, "
           f"{sum(1 for t in tests.values() if 'blocked' in t.get('tags', []))} blocked")
     return set(tests)
+
+
+def check_diagnostic_t1_lists(side, problems):
+    """Validate isolated DG04/DG05 diagnostic lists without adding them to aggregates."""
+    cfg = sim_cfg.load("t1")
+    targets = set(sim_cfg.targets(cfg))
+    modes = set(cfg.get("run_modes", {}))
+    classes = test_classes("t1")
+    aggregate_path = os.path.join(UVM_ROOT, cfg.get("testlist", {}).get("path", ""))
+    aggregate_tests, _ = testlist.load(aggregate_path)
+    known = set()
+    for filename in DIAGNOSTIC_ONLY_T1_LISTS:
+        path = os.path.join(UVM_ROOT, "testlists", filename)
+        try:
+            tests, groups = testlist.load(path)
+        except testlist.TestlistError as e:
+            problems.append(str(e))
+            continue
+        for name, entry in tests.items():
+            src = os.path.relpath(entry["_source"], UVM_ROOT)
+            cls = testlist.uvm_class(entry)
+            if cls is None:
+                problems.append(f"{src}: {name}: no UVM class binding (module.uvm)")
+            elif cls not in classes:
+                problems.append(f"{src}: {name}: module.uvm {cls} is not a test class under T1")
+            if entry.get("target") and entry["target"] not in targets:
+                problems.append(f"{src}: {name}: target {entry['target']} is not a T1 target")
+            for mode in entry.get("run_modes", []):
+                if mode not in modes:
+                    problems.append(f"{src}: {name}: run mode {mode} is not in T1 [run_modes]")
+            for key in ("seed", "reseed", "timeout_sec"):
+                if key in entry and (not isinstance(entry[key], int) or entry[key] < 1):
+                    problems.append(f"{src}: {name}: {key} must be a positive integer")
+            if name not in side["plan_ids"] or not side["plan_ids"][name].strip():
+                problems.append(f"{src}: {name}: not in plan_ids.yaml (give it plan IDs)")
+            if name in aggregate_tests:
+                problems.append(f"{src}: {name}: diagnostic scenario is included in the T1 aggregate")
+            known.add(name)
+        for group, names in groups.items():
+            if group in {"all", "smoke", "regression", "pass_only"}:
+                problems.append(f"{filename}: diagnostic list must not define PASS-only group {group}")
+            for name in names:
+                if name not in tests:
+                    problems.append(f"{filename}: group {group}: member {name} is not a scenario")
+        print(f"check_testlists: testlists/{filename}: {len(tests)} diagnostic scenarios, "
+              f"{len(groups)} isolated groups")
+    return known
 
 
 def check_escape(problems):
@@ -152,16 +208,19 @@ def main():
     except testlist.TestlistError as e:
         print(f"check_testlists: {e}", file=sys.stderr)
         return 1
+    diagnostic_t1_scenarios = check_diagnostic_t1_lists(side, problems)
     scenarios = set()
     for tb in ("t1", "reg", "l3_unit", "axi_selftest"):
-        scenarios |= check_bench(tb, side, problems)
+        scenarios |= check_bench(tb, side, problems, diagnostic_t1_scenarios=diagnostic_t1_scenarios)
 
     # DG05 runs from its own diagnostic list so the AW-only negative control
     # never enters all.toml or a PASS-only aggregate. Validate it with the same
     # T1 schema/target/class checks and require plan linkage.
     dg05_path = os.path.join(UVM_ROOT, "testlists", "dg05_diagnostic.toml")
     scenarios |= check_bench("t1", side, problems, path_override=dg05_path,
-                             require_plan=True)
+                             require_plan=True,
+                             diagnostic_t1_scenarios=diagnostic_t1_scenarios)
+    scenarios |= diagnostic_t1_scenarios
     check_escape(problems)
     for name in list(side["plan_ids"]) + list(side["blocked"]):
         if name not in scenarios:

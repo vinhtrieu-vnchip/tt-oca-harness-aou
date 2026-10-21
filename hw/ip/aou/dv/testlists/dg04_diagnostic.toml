@@ -1,0 +1,17 @@
+# DG04 observe-only TX B-response combiner qualification. Diagnostic-only;
+# intentionally excluded from all.toml and every PASS-only regression group.
+schema_version = 1
+
+[[tests]]
+name = "aou_b_combiner_test.2xmix-tp64_128"
+module = { uvm = "aou_b_combiner_test" }
+target = "2xmix-tp64_128"
+seed = 1
+tags = ["dg04_diagnostic"]
+run_modes = ["matrix"]
+args = ["+mrp_scn=b_combiner", "+mrp_rps=0,1"]
+
+[[groups]]
+name = "dg04_diagnostic"
+expected_count = 1
+tests = ["aou_b_combiner_test.2xmix-tp64_128"]

@@ -7,6 +7,7 @@
 [cols="2,2,3,3,3",options="header"]
 |===
 | Covergroup | Component | File | Coverpoints | Crosses
+| `cg_dg04` | `aou_b_identity_chk` | `uvm/env/aou_t1_b_identity_chk.svh` | `cp_event`, `cp_source_rp` | `x_event_source_rp`
 | `cg_crd` | `aou_t1_crd_flow_chk` | `uvm/env/aou_t1_crd_flow_chk.svh` | `cp_cls`, `cp_ev` | `x_cls_ev`
 | `cg_crd_rr` | `aou_t1_crd_rr_chk` | `uvm/env/aou_t1_crd_rr_chk.svh` | `cp_owed` | -
 | `cg_early_tbl` | `aou_t1_early_tbl_chk` | `uvm/env/aou_t1_early_tbl_chk.svh` | `cp_ev` | -

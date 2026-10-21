@@ -269,3 +269,4 @@ T1-RM04,aou_t1_remote_mgr_driver,,DUT,ReadData LAST is set on the last beat of a
 T1-RM05,aou_t1_remote_mgr_driver,,DUT,No remote write or read is outstanding at the end of the test,ARCHITECTURE.md scoreboard rule
 T1-RM06,aou_t1_remote_mgr,,DUT,A WriteResp/ReadData the DUT sends carries an RP below the remote managers' plane count,AoU 6.4.1; MAS 3.10
 T1-L4A01,aou_t1_l4a_adapter,,DUT,Every WriteData beat of one write burst carries the same DLENGTH,MAS 3.5.2
+DG04-ID01,aou_b_identity_chk,,DIAGNOSTIC,each accepted global-B/ring WriteResp identity matches one ordered decoded downstream WriteResp including mapped RP BID and BRESP,local DG04 observer contract; AoU WriteResp encoding
