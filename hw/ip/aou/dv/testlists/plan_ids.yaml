@@ -434,6 +434,8 @@ plan_ids:
   aou_reg_access_test.pclk_ps-40000: '11.17'
   aou_reg_access_test.pclk_ps-600: '11.17'
   aou_reg_access_test.pclk_ps-1013: '11.17'
+  aou_axi_stability_test.st_bp-all.1x512-sp64: '10.15'
+  aou_axi_stability_test.gate-negative-aw.1x512-sp64: '10.15'
 
 blocked:
   aou_perf_test.perf_scn-S4: 'narrow-AxSIZE bursts (128/256 beats): WriteData size vs DLENGTH (spec reading or DUT/bench deviation) and a ReadData256 pack-rate cap are under triage'
