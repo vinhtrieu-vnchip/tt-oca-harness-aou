@@ -81,6 +81,22 @@ class aou_b_identity_negative_test extends uvm_test;
     else `uvm_info(get_type_name(),
                    "DG04-ID01 repeated tuple matched in order; extra delivery rejected", UVM_LOW)
 
+    // Reset/link-loss epoch boundaries clear only epoch-local pending work;
+    // producer sequence numbers remain monotonic across the boundary.
+    m.reset();
+    a = rec(0, 0, 10'h111, 0);
+    b = rec(1, 1, 10'h211, 2'b10);
+    m.push(a);
+    if (m.observe(wire_rec(a.wire_rp, a.bid, a.bresp), matched) != AOU_B_ID_MATCH)
+      `uvm_error(get_type_name(), "DG04-ID01 epoch sequence setup did not match")
+    if (m.begin_epoch() != 0)
+      `uvm_error(get_type_name(), "DG04-ID01 drained epoch retained pending records")
+    m.push(b);
+    if (m.observe(wire_rec(b.wire_rp, b.bid, b.bresp), matched) != AOU_B_ID_MATCH)
+      `uvm_error(get_type_name(), "DG04-ID01 producer sequence did not continue across epoch")
+    else `uvm_info(get_type_name(),
+                   "DG04-ID01 producer sequence remains monotonic across epoch", UVM_LOW)
+
     phase.drop_objection(this);
   endtask
 endclass

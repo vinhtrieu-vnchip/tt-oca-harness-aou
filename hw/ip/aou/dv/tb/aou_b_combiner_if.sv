@@ -106,6 +106,8 @@ interface aou_b_combiner_if (
   bit [31:0] identity_queue_tail;
   bit [31:0] identity_queue_count;
   bit [31:0] identity_epoch;
+  // Monotonic across hard/soft reset, link loss, and checker re-arm. Epochs
+  // delimit lifecycle boundaries without reusing producer sequence values.
   bit [31:0] identity_next_sequence;
   bit [31:0] identity_producer_count;
   bit [31:0] identity_consumer_count;
@@ -115,6 +117,7 @@ interface aou_b_combiner_if (
   // DG04 qualification counters above.
   int unsigned identity_observer_errors;
   int unsigned identity_observer_reset_aborts;
+  int unsigned identity_observer_link_loss_aborts;
   int unsigned identity_observer_producers;
   int unsigned identity_observer_consumers;
   expected_item_t identity_observer_fifo[2];
@@ -247,7 +250,6 @@ interface aou_b_combiner_if (
     stalled_last = 1'b0;
     stall_unreleased = 1'b0;
     identity_epoch++;
-    identity_next_sequence = 0;
     identity_producer_count = 0;
     identity_consumer_count = 0;
     identity_queue_head = 0;
@@ -504,17 +506,26 @@ interface aou_b_combiner_if (
       expected_tail = 0;
       stalled_last = 1'b0;
       stall_unreleased = 1'b0;
-    end else if (armed) begin
+      prev_tx_link_active = tx_link_active;
+    end else begin
       identity_reset_seen = 1'b0;
       if (prev_tx_link_active && !tx_link_active &&
-          (identity_queue_count != 0 || global_occ != 0 || expected_count != 0)) begin
-        identity_link_loss_with_pending++;
-        errors++;
-        $error("DG04-ID01: TX link loss interrupted delivery pending=%0d global=%0d expected=%0d",
-               identity_queue_count, global_occ, expected_count);
+          (identity_queue_count != 0 || identity_observer_fifo_count != 0 ||
+           global_occ != 0 || expected_count != 0)) begin
+        if (armed) begin
+          identity_link_loss_with_pending++;
+          errors++;
+          $error("DG04-ID01: TX link loss interrupted delivery pending=%0d global=%0d expected=%0d",
+                 identity_queue_count, global_occ, expected_count);
+        end else if (identity_queue_count != 0 || identity_observer_fifo_count != 0) begin
+          identity_observer_link_loss_aborts++;
+          $error("DG04-ID01: TX link loss interrupted %0d passive producer record(s)",
+                 identity_queue_count + identity_observer_fifo_count);
+        end
       end
       if (prev_tx_link_active && !tx_link_active) identity_epoch++;
       prev_tx_link_active = tx_link_active;
+      if (armed) begin
       eligible_count = 0;
       selected_source = 4;
       if (bit_count(src_valid) >= 2) simultaneous_valid_cycles++;
@@ -697,8 +708,7 @@ interface aou_b_combiner_if (
       if (ring_flit_valid && ring_flit_ready) ring_flit_transfers++;
       if (fdi_tx_valid && fdi_tx_irdy && fdi_tx_ready) final_consumer_transfers++;
       if (fdi_tx_valid && fdi_tx_irdy && !fdi_tx_ready) final_consumer_stall_cycles++;
-    end else begin
-      identity_reset_seen = 1'b0;
+      end
     end
   end
   /* verilator lint_on BLKSEQ */

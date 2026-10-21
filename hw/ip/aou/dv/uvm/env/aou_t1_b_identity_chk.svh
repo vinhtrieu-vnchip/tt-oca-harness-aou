@@ -41,6 +41,15 @@ class aou_b_identity_matcher;
     next_sequence = 0;
   endfunction
 
+  // Start a new reset/link-loss epoch without restarting the interface-wide
+  // producer sequence. Any expected records at the boundary are interrupted,
+  // not delivered, and must be reported by the caller before they are cleared.
+  function int unsigned begin_epoch();
+    int unsigned pending = expected.size();
+    expected.delete();
+    return pending;
+  endfunction
+
   function void push(input aou_b_identity_record_t record);
     expected.push_back(record);
   endfunction
@@ -151,7 +160,13 @@ class aou_b_identity_chk extends uvm_subscriber #(aou_msg);
           "DG04-ID01: delivery crossed epoch %0d -> %0d with qualification active",
           qualification_epoch, epoch))
     if (!have_epoch || epoch != qualification_epoch) begin
-      matcher.reset();
+      if (have_epoch) begin
+        int unsigned interrupted = matcher.begin_epoch();
+        if (interrupted != 0)
+          `uvm_error(get_type_name(), $sformatf(
+              "DG04-ID01: epoch %0d interrupted %0d decoded reference record(s)",
+              qualification_epoch, interrupted))
+      end
       have_epoch = 1'b1;
       qualification_epoch = epoch;
     end
@@ -277,10 +292,13 @@ class aou_b_identity_chk extends uvm_subscriber #(aou_msg);
           bci.identity_observer_producers, bci.identity_observer_consumers,
           bci.identity_observer_fifo_count, bci.identity_queue_count))
     if (bci.identity_observer_reset_aborts != 0)
-      `uvm_info(get_type_name(), $sformatf(
-          {"DG04-ID01: reset began a new passive observation epoch; ",
-           "%0d prior pending record(s) were aborted, not delivered"},
-          bci.identity_observer_reset_aborts), UVM_LOW)
+      `uvm_error(get_type_name(), $sformatf(
+          "DG04-ID01: reset interrupted %0d passive producer record(s); not delivered",
+          bci.identity_observer_reset_aborts))
+    if (bci.identity_observer_link_loss_aborts != 0)
+      `uvm_error(get_type_name(), $sformatf(
+          "DG04-ID01: TX link loss interrupted %0d passive producer record(s); not delivered",
+          bci.identity_observer_link_loss_aborts))
   endfunction
 endclass
 
