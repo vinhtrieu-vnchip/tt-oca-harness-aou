@@ -24,7 +24,7 @@ jobs:
 
           echo "Branch name: $BRANCH"
 
-          PATTERN="^(feature|bugfix|hotfix|chore|dependabot)/"
+          PATTERN="^(feature|bugfix|hotfix|chore|dependabot|staging)/"
 
           if [[ "$BRANCH" =~ $PATTERN ]]; then
             echo "Branch name '$BRANCH' follows the naming convention."
