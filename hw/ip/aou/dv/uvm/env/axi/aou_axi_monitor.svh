@@ -71,6 +71,8 @@ class aou_axi_monitor extends uvm_monitor;
   protected bit [1:0] cv_len_bkt;
   protected bit       cv_unaligned;
   protected bit       cv_zero;
+  protected int       cv_stability_ch;
+  protected int       cv_stability_ev;
 
   covergroup txn_cg;
     cp_dir: coverpoint cv_is_rd {
@@ -99,15 +101,29 @@ class aou_axi_monitor extends uvm_monitor;
     x_zero: cross cp_dir, cp_zero;
   endgroup
 
+  // Stimulus-quality observations are functional coverage, not protocol
+  // errors. This cross preserves the AXI channel that reached each event.
+  covergroup stability_cg;
+    cp_channel: coverpoint cv_stability_ch {
+      `AOU_AXI_FC_STABILITY_CH(AOU_FC_CG)
+    }
+    cp_event: coverpoint cv_stability_ev {
+      `AOU_AXI_FC_STABILITY_EV(AOU_FC_CG)
+    }
+    x_stability: cross cp_channel, cp_event;
+  endgroup
+
   // The service's copies of the covergroups above, shared by every monitor.
   protected aou_fc_group fc_txn;
   protected aou_fc_group fc_zero;
+  protected aou_fc_group fc_stability;
 
   function new(string name, uvm_component parent);
     super.new(name, parent);
     ap      = new("ap", this);
     txn_cg  = new();
     zero_cg = new();
+    stability_cg = new();
     fc_declare();
   endfunction
 
@@ -129,6 +145,12 @@ class aou_axi_monitor extends uvm_monitor;
       p = fc_zero.cp("cp_dir"); `AOU_AXI_FC_DIR(AOU_FC_REG)
       p = fc_zero.cp("cp_zero"); `AOU_AXI_FC_ZERO(AOU_FC_REG)
       void'(fc_zero.add_cross("x_zero", "cp_dir cp_zero"));
+    end
+    fc_stability = db.group("axi.stability_cg", fresh);
+    if (fresh) begin
+      p = fc_stability.cp("cp_channel"); `AOU_AXI_FC_STABILITY_CH(AOU_FC_REG)
+      p = fc_stability.cp("cp_event"); `AOU_AXI_FC_STABILITY_EV(AOU_FC_REG)
+      void'(fc_stability.add_cross("x_stability", "cp_channel cp_event"));
     end
   endfunction
 
@@ -206,27 +228,53 @@ class aou_axi_monitor extends uvm_monitor;
 
     // These are the exact prior-cycle stalled antecedents evaluated by R01-R05.
     if (prior_checks_enabled) begin
-      if (p_awvalid === 1'b1 && p_awready === 1'b0) n_stability_activations[AOU_AXI_CH_AW]++;
-      if (p_wvalid  === 1'b1 && p_wready  === 1'b0) n_stability_activations[AOU_AXI_CH_W]++;
-      if (p_bvalid  === 1'b1 && p_bready  === 1'b0) n_stability_activations[AOU_AXI_CH_B]++;
-      if (p_arvalid === 1'b1 && p_arready === 1'b0) n_stability_activations[AOU_AXI_CH_AR]++;
-      if (p_rvalid  === 1'b1 && p_rready  === 1'b0) n_stability_activations[AOU_AXI_CH_R]++;
+      if (p_awvalid === 1'b1 && p_awready === 1'b0)
+        observe_stability_activation(AOU_AXI_CH_AW);
+      if (p_wvalid  === 1'b1 && p_wready  === 1'b0)
+        observe_stability_activation(AOU_AXI_CH_W);
+      if (p_bvalid  === 1'b1 && p_bready  === 1'b0)
+        observe_stability_activation(AOU_AXI_CH_B);
+      if (p_arvalid === 1'b1 && p_arready === 1'b0)
+        observe_stability_activation(AOU_AXI_CH_AR);
+      if (p_rvalid  === 1'b1 && p_rready  === 1'b0)
+        observe_stability_activation(AOU_AXI_CH_R);
     end
+  endfunction
+
+  protected function void observe_stability_activation(aou_axi_ch_e ch);
+    n_stability_activations[ch]++;
+    sample_stability(ch, AOU_AXI_STABILITY_ACTIVATION);
   endfunction
 
   protected function void observe_channel(aou_axi_ch_e ch, logic valid, logic ready);
     if (valid === 1'b1 && ready === 1'b1) begin
       n_handshakes[ch]++;
-      if (stall_active[ch]) n_stall_releases[ch]++;
+      if (stall_active[ch]) begin
+        n_stall_releases[ch]++;
+        sample_stability(ch, AOU_AXI_STALL_RELEASE);
+      end
       stall_active[ch] = 1'b0;
     end else if (valid === 1'b1 && ready === 1'b0) begin
-      if (stall_active[ch]) n_sustained_stall_cycles[ch]++;
-      else n_stall_entries[ch]++;
+      if (stall_active[ch]) begin
+        n_sustained_stall_cycles[ch]++;
+        sample_stability(ch, AOU_AXI_SUSTAINED_STALL);
+      end else begin
+        n_stall_entries[ch]++;
+        sample_stability(ch, AOU_AXI_STALL_ENTRY);
+      end
       stall_active[ch] = 1'b1;
     end else begin
       if (stall_active[ch]) n_stall_aborts[ch]++;
       stall_active[ch] = 1'b0;
     end
+  endfunction
+
+  protected function void sample_stability(aou_axi_ch_e ch, aou_axi_stability_ev_e ev);
+    if (!cfg.cov_en) return;
+    cv_stability_ch = int'(ch);
+    cv_stability_ev = int'(ev);
+    stability_cg.sample();
+    fc_stability.sample(cv_stability_ch, cv_stability_ev);
   endfunction
 
   protected function void report_stability_observations();

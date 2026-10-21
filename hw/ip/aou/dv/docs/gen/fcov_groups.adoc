@@ -16,6 +16,7 @@
 | `chan_cg` | `aou_t1_xfer_cov` | `uvm/env/aou_t1_xfer_cov.svh` | `cp_event` | -
 | `txn_cg` | `aou_axi_monitor` | `uvm/env/axi/aou_axi_monitor.svh` | `cp_dir`, `cp_size`, `cp_len`, `cp_align` | `x_txn`
 | `zero_cg` | `aou_axi_monitor` | `uvm/env/axi/aou_axi_monitor.svh` | `cp_dir`, `cp_zero` | `x_zero`
+| `stability_cg` | `aou_axi_monitor` | `uvm/env/axi/aou_axi_monitor.svh` | `cp_channel`, `cp_event` | `x_stability`
 | `cg_fdi_xfer` | `aou_fdi_cov` | `uvm/env/fdi/l1/aou_fdi_cov.svh` | `cp_dir`, `cp_width`, `cp_stall`, `cp_gap` | `x_dir_stall`, `x_dir_gap`
 | `cg_fdi_cancel` | `aou_fdi_cov` | `uvm/env/fdi/l1/aou_fdi_cov.svh` | `cp_half`, `cp_kind`, `cp_repeat`, `cp_stalled` | `x_half_kind`
 | `cg_fdi_stall` | `aou_fdi_cov` | `uvm/env/fdi/l1/aou_fdi_cov.svh` | `cp_lat`, `cp_hold`, `cp_where`, `cp_trdy_at_req` | `x_where_lat`, `x_where_trdy`
