@@ -1,0 +1,283 @@
+name: DG04 DG05 Combined Qualification
+
+on:
+  pull_request:
+    branches: ["staging/upstream-8374a725"]
+
+permissions:
+  contents: read
+
+env:
+  INTEGRATION_COMMIT: c31430ce7a5b58298cd75fd9baa4050494f4f9cf
+  INTEGRATION_TREE: f992f41206826d5c5d1ae52a4cf35991f1056bf0
+  BASE_COMMIT: 8374a7255c1db85b9994b6d9f44c2b78c18c2f59
+
+jobs:
+  static:
+    name: Combined static checks and lint
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ env.INTEGRATION_COMMIT }}
+          fetch-depth: 0
+      - name: Verify exact source and record manifest
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$INTEGRATION_COMMIT"
+          test "$(git rev-parse 'HEAD^{tree}')" = "$INTEGRATION_TREE"
+          mkdir -p "$GITHUB_WORKSPACE/evidence-static"
+          {
+            echo "commit=$(git rev-parse HEAD)"
+            echo "tree=$(git rev-parse 'HEAD^{tree}')"
+            echo "parents=$(git show -s --format=%P HEAD)"
+            echo "baseline=$BASE_COMMIT"
+            echo "tool pins:"; cat .github/tool-versions.env
+            echo "changed paths:"; git diff --name-only "$BASE_COMMIT..HEAD"
+            echo "submodules:"; git submodule status || true
+            echo "source sha256:"
+            git diff --binary "$BASE_COMMIT..HEAD" | sha256sum
+          } | tee "$GITHUB_WORKSPACE/evidence-static/source-manifest.txt"
+      - name: Install pinned Verilator and Verible
+        id: tools
+        run: |
+          set -euo pipefail
+          source .github/tool-versions.env
+          echo "verilator=$VERILATOR_VERSION" >> "$GITHUB_OUTPUT"
+          echo "verible=$VERIBLE_VERSION" >> "$GITHUB_OUTPUT"
+          curl -fsSL "https://github.com/chipsalliance/verible/releases/download/${VERIBLE_VERSION}/verible-${VERIBLE_VERSION}-linux-static-x86_64.tar.gz" | tar xz -C "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/verible-${VERIBLE_VERSION}/bin" >> "$GITHUB_PATH"
+      - uses: veryl-lang/setup-verilator@v2
+        with:
+          version: ${{ steps.tools.outputs.verilator }}
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - name: Setup dependencies and run maintained static gates
+        working-directory: hw/ip/aou/dv
+        run: |
+          set -euo pipefail
+          make setup 2>&1 | tee "$GITHUB_WORKSPACE/evidence-static/setup.log"
+          make check-config 2>&1 | tee "$GITHUB_WORKSPACE/evidence-static/check-config.log"
+          for t in scripts/test_*.py; do python3 -I "$t"; done 2>&1 | tee "$GITHUB_WORKSPACE/evidence-static/script-tests.log"
+          python3 scripts/run_list.py --dry-run --target 2xmix-tp64_128 testlists/dg04_diagnostic.toml testlists/dg04_identity_controls.toml | tee "$GITHUB_WORKSPACE/evidence-static/dg04-dry-run.log"
+          python3 scripts/run_list.py --dry-run --target 1x512-sp64 testlists/dg05_diagnostic.toml | tee "$GITHUB_WORKSPACE/evidence-static/dg05-dry-run.log"
+          git diff --check "$BASE_COMMIT..HEAD" | tee "$GITHUB_WORKSPACE/evidence-static/diff-check.log"
+          make lint 2>&1 | tee "$GITHUB_WORKSPACE/evidence-static/lint.log"
+          {
+            verilator --version
+            verible-verilog-lint --version
+            python3 --version
+            .deps/z3/bin/z3 --version
+            echo "uvm-core=$(git -C .deps/uvm-core rev-parse HEAD)"
+            echo "ocah_lib=$(git -C .deps/ocah_lib rev-parse HEAD)"
+          } | tee "$GITHUB_WORKSPACE/evidence-static/tool-and-dependency-versions.txt"
+      - name: Hash and upload static evidence
+        if: always()
+        run: |
+          set -euo pipefail
+          cd "$GITHUB_WORKSPACE"
+          find evidence-static -type f ! -name SHA256SUMS -print0 | sort -z | xargs -0 sha256sum > evidence-static/SHA256SUMS
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: dg04-dg05-static-${{ github.run_id }}
+          if-no-files-found: warn
+          retention-days: 90
+          path: evidence-static/**
+
+  dg04:
+    name: DG04 local B combiner and identity
+    runs-on: ubuntu-24.04
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ env.INTEGRATION_COMMIT }}
+          fetch-depth: 0
+      - name: Install pinned Verilator and Python
+        id: tools
+        run: |
+          set -euo pipefail
+          source .github/tool-versions.env
+          echo "verilator=$VERILATOR_VERSION" >> "$GITHUB_OUTPUT"
+      - uses: veryl-lang/setup-verilator@v2
+        with:
+          version: ${{ steps.tools.outputs.verilator }}
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - name: Setup dependencies and build DG04 target
+        working-directory: hw/ip/aou/dv
+        run: |
+          set -euo pipefail
+          mkdir -p "$GITHUB_WORKSPACE/evidence-dg04"
+          make setup 2>&1 | tee "$GITHUB_WORKSPACE/evidence-dg04/setup.log"
+          make build SIM=verilator TB=t1 CONFIG=2xmix-tp64_128 COV=1 JOBS="$(nproc)" LSF=0 2>&1 | tee "$GITHUB_WORKSPACE/evidence-dg04/build.log"
+          b=build/verilator-t1-2xmix-tp64_128-cov
+          test -x "$b/Vtb_top"
+          { sha256sum "$b/Vtb_top"; cat "$b/build.stamp"; verilator --version; } | tee "$GITHUB_WORKSPACE/evidence-dg04/build-identity.txt"
+      - name: Run DG04 positive, six matcher controls, and production subscriber negatives
+        working-directory: hw/ip/aou/dv
+        shell: bash
+        run: |
+          set -euo pipefail
+          run_case() {
+            local list="$1" test="$2" rid="$3" expected="$4" out="$GITHUB_WORKSPACE/evidence-dg04/$3/out"
+            mkdir -p "$GITHUB_WORKSPACE/evidence-dg04/$rid"
+            local rc=0
+            if python3 scripts/run_list.py "$list" --sim verilator --tb t1 --target 2xmix-tp64_128 --cov 1 --reseed 1 -j 1 --rid "$rid" --out-dir "$out" --items "$test" 2>&1 | tee "$GITHUB_WORKSPACE/evidence-dg04/$rid/run-list.log"; then rc=0; else rc=$?; fi
+            printf '%s\n' "$rc" > "$GITHUB_WORKSPACE/evidence-dg04/$rid/run-list-exit-code.txt"
+            mapfile -t vs < <(find "$out" -type f -name verdict.txt)
+            test "${#vs[@]}" -eq 1
+            local v="${vs[0]}" d="$(dirname "${vs[0]}")"
+            cp "$v" "$GITHUB_WORKSPACE/evidence-dg04/$rid/verdict.txt"
+            cp "$d/sim.log" "$GITHUB_WORKSPACE/evidence-dg04/$rid/sim.log"
+            cp "$out/results.csv" "$GITHUB_WORKSPACE/evidence-dg04/$rid/results.csv"
+            test ! -f "$d/fc.json" || cp "$d/fc.json" "$GITHUB_WORKSPACE/evidence-dg04/$rid/fc.json"
+            python3 - "$GITHUB_WORKSPACE/evidence-dg04/$rid/sim.log" "$GITHUB_WORKSPACE/evidence-dg04/$rid/verdict.txt" "$expected" "$rc" <<'PY'
+          import pathlib,re,sys
+          log=pathlib.Path(sys.argv[1]).read_text(errors="replace")
+          verdict=pathlib.Path(sys.argv[2]).read_text()
+          expected,rc=sys.argv[3],int(sys.argv[4])
+          errors=[x for x in log.splitlines() if re.match(r"^\s*UVM_(?:ERROR|FATAL)\s+(?!:)",x)]
+          if expected=="PASS":
+              assert rc==0 and verdict.startswith("PASS:"), (rc,verdict)
+              assert not errors, errors
+          elif expected=="DG04_FAIL":
+              assert rc!=0 and verdict.startswith("FAIL:"), (rc,verdict)
+              assert any("DG04-ID01: order/tuple mismatch" in x for x in errors), errors
+              assert errors and all("DG04-ID01:" in x for x in errors), errors
+              assert not any("UVM_FATAL" in x for x in errors), errors
+          PY
+          }
+          run_case testlists/dg04_diagnostic.toml aou_b_combiner_test.2xmix-tp64_128 dg04-positive PASS
+          run_case testlists/dg04_identity_controls.toml aou_b_identity_negative_test.2xmix-tp64_128 dg04-matcher-negatives PASS
+          for pair in \
+            'aou_b_combiner_test.corrupt_wresp.2xmix-tp64_128 dg04-subscriber-corruption' \
+            'aou_mrp_test.mrp_scn-interleave.mrp_rps-0_1.dg04_corrupt_wresp.2xmix-tp64_128 dg04-ordinary-subscriber-corruption'; do
+            set -- $pair
+            run_case testlists/dg04_identity_controls.toml "$1" "$2" DG04_FAIL
+          done
+          for phrase in \
+            'negative RP corruption detected' 'negative BID corruption detected' \
+            'negative BRESP corruption detected' 'negative missing delivery detected' \
+            'negative duplicate delivery detected' 'negative reordered delivery detected'; do
+            grep -Fq "$phrase" "$GITHUB_WORKSPACE/evidence-dg04/dg04-matcher-negatives/sim.log"
+          done
+          python3 - "$GITHUB_WORKSPACE/evidence-dg04/dg04-positive/sim.log" "$GITHUB_WORKSPACE/evidence-dg04/identity-summary.txt" <<'PY'
+          import pathlib,re,sys
+          log=pathlib.Path(sys.argv[1]).read_text(errors="replace")
+          m=re.search(r"DG04-ID01: final producer=(\d+) decoded=(\d+) unique=(\d+) rp-mask=([01]+) pending=(\d+) epoch=(\d+)",log)
+          assert m, "missing DG04 final identity summary"
+          producer,decoded,unique,mask,pending,epoch=m.groups()
+          assert int(producer)>0 and producer==decoded==unique and int(pending)==0 and int(epoch)>0
+          assert int(mask,2).bit_count()>=2, f"fewer than two source RPs observed: {mask}"
+          pathlib.Path(sys.argv[2]).write_text(m.group(0)+"\n")
+          print(m.group(0))
+          PY
+          grep 'DG04\[final\]:' "$GITHUB_WORKSPACE/evidence-dg04/dg04-positive/sim.log" | tee "$GITHUB_WORKSPACE/evidence-dg04/counter-summary.txt"
+      - name: Hash and upload DG04 evidence
+        if: always()
+        run: |
+          set -euo pipefail
+          cd "$GITHUB_WORKSPACE"
+          find evidence-dg04 -type f ! -name SHA256SUMS -print0 | sort -z | xargs -0 sha256sum > evidence-dg04/SHA256SUMS
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: dg04-combined-qualification-${{ github.run_id }}
+          if-no-files-found: warn
+          retention-days: 90
+          path: |
+            evidence-dg04/**
+            hw/ip/aou/dv/build/verilator-t1-2xmix-tp64_128-cov/build.stamp
+            hw/ip/aou/dv/build/metrics.jsonl
+
+  dg05:
+    name: DG05 AXI stability and FCOV
+    runs-on: ubuntu-24.04
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ env.INTEGRATION_COMMIT }}
+          fetch-depth: 0
+      - name: Load tool pin
+        id: tools
+        run: |
+          set -euo pipefail
+          source .github/tool-versions.env
+          echo "verilator=$VERILATOR_VERSION" >> "$GITHUB_OUTPUT"
+      - uses: veryl-lang/setup-verilator@v2
+        with:
+          version: ${{ steps.tools.outputs.verilator }}
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - name: Setup dependencies and build DG05 target
+        working-directory: hw/ip/aou/dv
+        run: |
+          set -euo pipefail
+          mkdir -p "$GITHUB_WORKSPACE/evidence-dg05"
+          make setup 2>&1 | tee "$GITHUB_WORKSPACE/evidence-dg05/setup.log"
+          make build SIM=verilator TB=t1 CONFIG=1x512-sp64 COV=1 JOBS="$(nproc)" LSF=0 2>&1 | tee "$GITHUB_WORKSPACE/evidence-dg05/build.log"
+          b=build/verilator-t1-1x512-sp64-cov
+          test -x "$b/Vtb_top"
+          { sha256sum "$b/Vtb_top"; cat "$b/build.stamp"; verilator --version; } | tee "$GITHUB_WORKSPACE/evidence-dg05/build-identity.txt"
+      - name: Run DG05 positive and AW-only negative
+        working-directory: hw/ip/aou/dv
+        shell: bash
+        run: |
+          set -euo pipefail
+          run_case() {
+            local item="$1" rid="$2" expected="$3" out="$GITHUB_WORKSPACE/evidence-dg05/$2/out"
+            mkdir -p "$GITHUB_WORKSPACE/evidence-dg05/$rid"
+            local rc=0
+            if python3 scripts/run_list.py testlists/dg05_diagnostic.toml --sim verilator --tb t1 --target 1x512-sp64 --cov 1 --reseed 1 -j 1 --rid "$rid" --out-dir "$out" --items "$item" 2>&1 | tee "$GITHUB_WORKSPACE/evidence-dg05/$rid/run-list.log"; then rc=0; else rc=$?; fi
+            printf '%s\n' "$rc" > "$GITHUB_WORKSPACE/evidence-dg05/$rid/run-list-exit-code.txt"
+            mapfile -t vs < <(find "$out" -type f -name verdict.txt)
+            test "${#vs[@]}" -eq 1
+            local v="${vs[0]}" d="$(dirname "${vs[0]}")"
+            cp "$v" "$GITHUB_WORKSPACE/evidence-dg05/$rid/verdict.txt"
+            cp "$d/sim.log" "$GITHUB_WORKSPACE/evidence-dg05/$rid/sim.log"
+            cp "$out/results.csv" "$GITHUB_WORKSPACE/evidence-dg05/$rid/results.csv"
+            cp "$d/fc.json" "$GITHUB_WORKSPACE/evidence-dg05/$rid/fc.json"
+            python3 - "$GITHUB_WORKSPACE/evidence-dg05/$rid/sim.log" "$GITHUB_WORKSPACE/evidence-dg05/$rid/verdict.txt" "$expected" "$rc" <<'PY'
+          import pathlib,re,sys
+          log=pathlib.Path(sys.argv[1]).read_text(errors="replace")
+          verdict=pathlib.Path(sys.argv[2]).read_text()
+          expected,rc=sys.argv[3],int(sys.argv[4])
+          errors=[x for x in log.splitlines() if re.match(r"^\s*UVM_(?:ERROR|FATAL)\s+(?!:)",x)]
+          if expected=="PASS":
+              assert rc==0 and verdict.startswith("PASS:"), (rc,verdict)
+              assert not errors, errors
+          else:
+              assert rc!=0 and verdict.startswith("FAIL:"), (rc,verdict)
+              assert errors and all("DG05:" in x and "had no " in x or "DG05:" in x and "did not activate AXI-R stability check" in x for x in errors), errors
+              assert any("stall entry" in x or "sustained stall cycle" in x or "stall-to-handshake release" in x for x in errors), errors
+              assert not any("stalled VALID abort" in x for x in errors), errors
+          PY
+          }
+          run_case aou_axi_stability_test.st_bp-all.1x512-sp64 dg05-positive PASS
+          run_case aou_axi_stability_test.gate-negative-aw.1x512-sp64 dg05-aw-only-negative FAIL
+          grep -E 'DG05 monitor=' "$GITHUB_WORKSPACE/evidence-dg05/dg05-positive/sim.log" | tee "$GITHUB_WORKSPACE/evidence-dg05/observation-counts.txt"
+          grep -E 'DG05: .* had no |DG05: .* did not activate AXI-R stability check' "$GITHUB_WORKSPACE/evidence-dg05/dg05-aw-only-negative/sim.log" | tee "$GITHUB_WORKSPACE/evidence-dg05/negative-signature.txt"
+          grep -F 'stability_cg' "$GITHUB_WORKSPACE/evidence-dg05/dg05-positive/fc.json" | tee "$GITHUB_WORKSPACE/evidence-dg05/fcov-registration.txt"
+      - name: Hash and upload DG05 evidence
+        if: always()
+        run: |
+          set -euo pipefail
+          cd "$GITHUB_WORKSPACE"
+          find evidence-dg05 -type f ! -name SHA256SUMS -print0 | sort -z | xargs -0 sha256sum > evidence-dg05/SHA256SUMS
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: dg05-combined-qualification-${{ github.run_id }}
+          if-no-files-found: warn
+          retention-days: 90
+          path: |
+            evidence-dg05/**
+            hw/ip/aou/dv/build/verilator-t1-1x512-sp64-cov/build.stamp
+            hw/ip/aou/dv/build/metrics.jsonl
