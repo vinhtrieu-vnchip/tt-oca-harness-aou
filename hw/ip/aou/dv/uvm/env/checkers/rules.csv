@@ -271,3 +271,4 @@ T1-RM06,aou_t1_remote_mgr,,DUT,A WriteResp/ReadData the DUT sends carries an RP 
 T1-L4A01,aou_t1_l4a_adapter,,DUT,Every WriteData beat of one write burst carries the same DLENGTH,MAS 3.5.2
 T1-L4A02,aou_t1_l4a_adapter,,DUT,"WriteData DLENGTH is at least max(the size of its WriteReq, 256 bits)","AoU 5.4 (DLENGTH); project ruling: DLENGTH is self-describing, any width at or above the WriteReq's size is legal"
 T1-L4A04,aou_t1_l4a_adapter,,MODEL,The remote model's maximum burst length changes only while it has no request in hand,project ruling: a maximum burst change is legal only while the remote is idle
+DG04-ID01,aou_b_identity_chk,,DIAGNOSTIC,each accepted global-B/ring WriteResp identity matches one ordered decoded downstream WriteResp including mapped RP BID and BRESP,local DG04 observer contract; AoU WriteResp encoding

@@ -10,3 +10,4 @@
 `include "stress/aou_pattern_test.svh"
 `include "stress/aou_addr_test.svh"
 `include "stress/aou_stress_test.svh"
+`include "stress/aou_axi_stability_test.svh"
