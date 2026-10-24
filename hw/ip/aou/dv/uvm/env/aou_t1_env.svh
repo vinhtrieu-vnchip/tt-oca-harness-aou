@@ -156,7 +156,7 @@ class aou_t1_env extends uvm_env;
     end
     bridge.ap.connect(l3.rx_flit_imp);
     foreach (fdi[p]) fdi[p].mon.ap_tx.connect(exact_chk.admit_imp);
-    fdi[cfg.lsm_cfg.active_phy].mon.ap_rx.connect(exact_chk.grant_imp);
+    fdi[cfg.lsm_cfg.active_phy].mon.ap_rx_half.connect(exact_chk.grant_imp);
     exact_chk.rst_vif = rst.vif;
     exact_chk.wire_mon = fdi[cfg.lsm_cfg.active_phy].mon;
     exact_chk.model = l3.model;
@@ -374,6 +374,9 @@ class aou_t1_env extends uvm_env;
     if (l3.model.pk.queued_msgs() != 0)
       why = {why, $sformatf(" l3_tx_queue=%0d", l3.model.pk.queued_msgs())};
     n += l3.model.pk.queued_msgs();
+    if(exact_chk.outstanding()!=0)
+      why={why,$sformatf(" credit_exact=%0d",exact_chk.outstanding())};
+    n+=exact_chk.outstanding();
     return n;
   endfunction
 endclass

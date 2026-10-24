@@ -26,6 +26,9 @@ interface aou_rst_if (input logic clk, input logic pclk);
   logic [7:0] rx_w_pend;
   logic        rx_msgcrdt_valid;
   logic [15:0] rx_msgcrdt;
+  // Read-only credit reservation/counter boundary, in wire-RP/class order.
+  logic credit_count_en, credit_disabled;
+  logic [3:0][4:0][31:0] credit_state, credit_grant, credit_debit;
   logic apb_psel;
   logic apb_bridge_idle;
   wire  apb_quiet = apb_psel === 1'b0 && apb_bridge_idle === 1'b1;
@@ -42,7 +45,8 @@ interface aou_rst_if (input logic clk, input logic pclk);
 
   clocking mon_cb @(posedge clk);
     input rst_n, prst_n, core_rst_n, port_iso, rx_w_pend, apb_quiet, dft_modescan,
-          rx_msgcrdt_valid, rx_msgcrdt;
+          rx_msgcrdt_valid, rx_msgcrdt, credit_count_en, credit_disabled,
+          credit_state, credit_grant, credit_debit;
   endclocking
 
   clocking pmon_cb @(posedge pclk);

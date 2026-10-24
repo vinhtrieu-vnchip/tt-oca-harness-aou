@@ -277,6 +277,64 @@ module tb_top;
       .tx_link_active(bci_fdi_tx_active)
   );
 
+  // Accepted reservation and parsed-grant observations; no DUT signal is driven.
+  assign rst.credit_count_en = u_dut.u_aou_core_top.u_aou_core.
+        u_aou_crd_ctrl.u_aou_tx_crd_ctrl.I_CRD_COUNT_EN;
+  assign rst.credit_disabled = u_dut.u_aou_core_top.u_aou_core.
+        u_aou_crd_ctrl.u_aou_tx_crd_ctrl.I_STATUS_DISABLE;
+  for (genvar c_rp = 0; c_rp < 4; c_rp++) begin : gen_credit_observation
+    assign rst.credit_state[c_rp][0] = 32'(
+        u_dut.u_aou_core_top.u_aou_core.
+        u_aou_crd_ctrl.u_aou_tx_crd_ctrl.
+        generate_rp_aw_credit[c_rp].r_cnt_aw_credit_rx);
+    assign rst.credit_grant[c_rp][0] = 32'(
+        u_dut.u_aou_core_top.u_aou_core.
+        u_aou_crd_ctrl.u_aou_tx_crd_ctrl.w_cnt_rp_aw_credit[c_rp]);
+    assign rst.credit_debit[c_rp][0] = 32'(
+        u_dut.u_aou_core_top.u_aou_core.
+        u_aou_crd_ctrl.u_aou_tx_crd_ctrl.w_cnt_rp_aw_credit_discount_dest_rp[c_rp]);
+    assign rst.credit_state[c_rp][1] = 32'(
+        u_dut.u_aou_core_top.u_aou_core.
+        u_aou_crd_ctrl.u_aou_tx_crd_ctrl.
+        generate_rp_ar_credit[c_rp].r_cnt_ar_credit_rx);
+    assign rst.credit_grant[c_rp][1] = 32'(
+        u_dut.u_aou_core_top.u_aou_core.
+        u_aou_crd_ctrl.u_aou_tx_crd_ctrl.w_cnt_rp_ar_credit[c_rp]);
+    assign rst.credit_debit[c_rp][1] = 32'(
+        u_dut.u_aou_core_top.u_aou_core.
+        u_aou_crd_ctrl.u_aou_tx_crd_ctrl.w_cnt_rp_ar_credit_discount_dest_rp[c_rp]);
+    assign rst.credit_state[c_rp][2] = 32'(
+        u_dut.u_aou_core_top.u_aou_core.
+        u_aou_crd_ctrl.u_aou_tx_crd_ctrl.
+        generate_rp_w_credit[c_rp].r_cnt_w_credit_rx);
+    assign rst.credit_grant[c_rp][2] = 32'(
+        u_dut.u_aou_core_top.u_aou_core.
+        u_aou_crd_ctrl.u_aou_tx_crd_ctrl.w_cnt_rp_w_credit[c_rp]);
+    assign rst.credit_debit[c_rp][2] = 32'(
+        u_dut.u_aou_core_top.u_aou_core.
+        u_aou_crd_ctrl.u_aou_tx_crd_ctrl.w_cnt_rp_w_credit_discount_dest_rp[c_rp]);
+    assign rst.credit_state[c_rp][3] = 32'(
+        u_dut.u_aou_core_top.u_aou_core.
+        u_aou_crd_ctrl.u_aou_tx_crd_ctrl.
+        generate_rp_r_credit[c_rp].r_cnt_r_credit_rx);
+    assign rst.credit_grant[c_rp][3] = 32'(
+        u_dut.u_aou_core_top.u_aou_core.
+        u_aou_crd_ctrl.u_aou_tx_crd_ctrl.w_cnt_rp_r_credit[c_rp]);
+    assign rst.credit_debit[c_rp][3] = 32'(
+        u_dut.u_aou_core_top.u_aou_core.
+        u_aou_crd_ctrl.u_aou_tx_crd_ctrl.w_cnt_rp_r_credit_discount_dest_rp[c_rp]);
+    assign rst.credit_state[c_rp][4] = 32'(
+        u_dut.u_aou_core_top.u_aou_core.
+        u_aou_crd_ctrl.u_aou_tx_crd_ctrl.
+        generate_rp_b_credit[c_rp].r_cnt_b_credit_rx);
+    assign rst.credit_grant[c_rp][4] = 32'(
+        u_dut.u_aou_core_top.u_aou_core.
+        u_aou_crd_ctrl.u_aou_tx_crd_ctrl.w_cnt_rp_b_credit[c_rp]);
+    assign rst.credit_debit[c_rp][4] = 32'(
+        u_dut.u_aou_core_top.u_aou_core.
+        u_aou_crd_ctrl.u_aou_tx_crd_ctrl.w_cnt_rp_b_credit_discount_dest_rp[c_rp]);
+  end
+
   // ---------------------------------------------------------------------------
   // AXI: per-RP interfaces to the DUT's packed [RP_COUNT-1:0] ports. Each RP is
   // connected at its own width, as a narrower bus plugged into the DUT's wider

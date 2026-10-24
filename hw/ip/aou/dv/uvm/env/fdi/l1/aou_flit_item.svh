@@ -56,6 +56,7 @@ class aou_flit_item extends uvm_sequence_item;
   // Accepted wire-beat times; replay overwrites cancelled-half observations.
   time                  accepted_beat[8];
   time                  committed_half[2];
+  int unsigned          observed_half;
 
   function new(string name = "aou_flit_item");
     super.new(name);

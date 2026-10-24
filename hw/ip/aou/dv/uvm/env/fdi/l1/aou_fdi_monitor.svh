@@ -18,6 +18,7 @@ class aou_fdi_monitor extends uvm_monitor;
 
   uvm_analysis_port #(aou_flit_item) ap_tx;
   uvm_analysis_port #(aou_flit_item) ap_rx;
+  uvm_analysis_port #(aou_flit_item) ap_rx_half;
 
   int unsigned n_tx_flits;
   int unsigned n_rx_flits;
@@ -61,6 +62,7 @@ class aou_fdi_monitor extends uvm_monitor;
     super.new(name, parent);
     ap_tx = new("ap_tx", this);
     ap_rx = new("ap_rx", this);
+    ap_rx_half = new("ap_rx_half", this);
   endfunction
 
   function void build_phase(uvm_phase phase);
@@ -276,7 +278,9 @@ class aou_fdi_monitor extends uvm_monitor;
         if (cov != null) cov.sample_cancel(half, v, count, stalled);
       end
     end else if (rx_half_done && rx_cur != null) begin
-      rx_cur.committed_half[(rx_beat == cfg.bpf()) ? 1 : 0] = $time;
+      rx_cur.observed_half = (rx_beat == cfg.bpf()) ? 1 : 0;
+      rx_cur.committed_half[rx_cur.observed_half] = $time;
+      ap_rx_half.write(rx_cur);
       if (rx_beat == cfg.bpf()) publish_rx();
     end
     rx_half_done = 1'b0;
@@ -326,13 +330,10 @@ class aou_fdi_monitor extends uvm_monitor;
     rx_beat = 0;
   endfunction
 
-  // A future completed flit can contain an event as early as this edge.
-  // Credit observers use this watermark rather than a fixed timing allowance.
-  function time pending_wire_start();
-    time oldest = 0;
-    if (rx_cur != null) oldest = rx_cur.t_start;
-    if (tx_cur != null && (oldest == 0 || tx_cur.t_start < oldest)) oldest = tx_cur.t_start;
-    return oldest;
+  // RX halves publish immediately at cancellation resolution. Only a TX
+  // prefix can still hide an earlier message start from a deferred observer.
+  function time pending_tx_start();
+    return tx_cur == null ? 0 : tx_cur.t_start;
   endfunction
 
   function void report_phase(uvm_phase phase);
