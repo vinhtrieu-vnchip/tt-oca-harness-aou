@@ -41,6 +41,8 @@ class aou_t1_env extends uvm_env;
   aou_t1_xfer_cov      xfer_cov;
   aou_t1_rx_fifo_chk   rx_fifo_chk;
   aou_t1_rx_align_chk  rx_align;
+  aou_b_identity_chk   identity_chk;
+  aou_b_identity_corruptor identity_corruptor;
   aou_fdi_chk_adapter  fdi_chk;
   aou_t1_expect        expects;   // "expect" is an SV keyword
   aou_t1_vseqr         vseqr;
@@ -62,6 +64,12 @@ class aou_t1_env extends uvm_env;
       `uvm_fatal(get_type_name(), "no fdi_lsm in config_db")
 
     expects = aou_t1_expect::type_id::create("expects", this);
+    identity_chk = aou_b_identity_chk::type_id::create("identity_chk", this);
+    begin
+      int corrupt_wresp;
+      if ($value$plusargs("dg04_corrupt_wresp=%d", corrupt_wresp) && corrupt_wresp != 0)
+        identity_corruptor = aou_b_identity_corruptor::type_id::create("identity_corruptor", this);
+    end
     rst = aou_t1_reset_agent::type_id::create("rst", this);
     rst.apb_cfg = cfg.apb_cfg;
 
@@ -145,6 +153,12 @@ class aou_t1_env extends uvm_env;
     end
     bridge.ap.connect(l3.rx_flit_imp);
     l3.ap_rx_msg.connect(rmgr.rx_imp);
+    if (identity_corruptor == null)
+      l3.ap_rx_msg.connect(identity_chk.analysis_export);
+    else begin
+      l3.ap_rx_msg.connect(identity_corruptor.analysis_export);
+      identity_corruptor.ap_out.connect(identity_chk.analysis_export);
+    end
     foreach (rmgr.drv[r]) begin
       rmgr.drv[r].clk_vif = s_mgr[0].cfg.vif;
       rmgr.drv[r].wreq_mode = cfg.remote_wreq;

@@ -91,6 +91,7 @@ sources = [
   "hw/ip/aou/dv/uvm/env/apb/aou_apb_pkg.sv",
   "hw/ip/aou/dv/uvm/env/apb/aou_reg_pkg.sv",
   "hw/ip/aou/dv/tb/aou_status_if.sv",
+  "hw/ip/aou/dv/tb/aou_b_combiner_if.sv",
   "hw/ip/aou/dv/tb/aou_irq_if.sv",
   "hw/ip/aou/dv/tb/aou_rst_if.sv",
   "hw/ip/aou/dv/tb/aou_axi4pc_ctl_if.sv",

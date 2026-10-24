@@ -196,10 +196,86 @@ module tb_top;
   aou_fdi_mb_if  #(.DATA_W(BUS_W)) fdi_mb1 (.clk(clk), .rst_n(rst_n));
 `endif
   aou_fdi_lsm_if                   fdi_lsm (.clk(clk), .rst_n(rst_n));
+  logic bci_fdi_tx_valid;
+  logic bci_fdi_tx_irdy;
+  logic bci_fdi_tx_ready;
+  logic bci_fdi_tx_active;
+`ifdef TWO_PHY
+  assign bci_fdi_tx_valid = fdi_lsm.phy_type ? fdi_mb1.lp_valid : fdi_mb0.lp_valid;
+  assign bci_fdi_tx_irdy = fdi_lsm.phy_type ? fdi_mb1.lp_irdy : fdi_mb0.lp_irdy;
+  assign bci_fdi_tx_ready = fdi_lsm.phy_type ? fdi_mb1.pl_trdy : fdi_mb0.pl_trdy;
+  assign bci_fdi_tx_active = fdi_lsm.phy_type ? (fdi_mb1.pl_state_sts == 4'h1) :
+                                                    (fdi_mb0.pl_state_sts == 4'h1);
+`else
+  assign bci_fdi_tx_valid = fdi_mb0.lp_valid;
+  assign bci_fdi_tx_irdy = fdi_mb0.lp_irdy;
+  assign bci_fdi_tx_ready = fdi_mb0.pl_trdy;
+  assign bci_fdi_tx_active = (fdi_mb0.pl_state_sts == 4'h1);
+`endif
   aou_apb_if #(.ADDR_W(32), .DATA_W(32)) apb (.pclk(pclk), .presetn(prst_n));
   aou_status_if                    status ();
   aou_irq_if                       irq (.clk(clk));
   aou_fdi_checker_if               fdi_chk (.clk(clk));
+  aou_b_combiner_if b_combiner (
+      .active_rp_count(3'(RP_COUNT)),
+      .clk(clk),
+      .rst_n(rst_n),
+      .src_valid(4'(u_dut.u_aou_core_top.u_aou_core.u_aou_tx_core.
+                   u_aou_tx_axi_buffer.w_aou_tx_s_axi_bvalid)),
+      .src_ready(4'(u_dut.u_aou_core_top.u_aou_core.u_aou_tx_core.
+                   u_aou_tx_axi_buffer.w_aou_tx_s_axi_bready)),
+      .src_credit_valid(4'(u_dut.u_aou_core_top.u_aou_core.u_aou_tx_core.
+                           u_aou_tx_axi_buffer.w_aou_tx_b_credit_valid)),
+      .src_dest_rp(u_dut.u_aou_core_top.u_aou_core.u_aou_tx_core.
+                   u_aou_tx_axi_buffer.I_RP_DEST_RP),
+      .src_bid(40'(u_dut.u_aou_core_top.u_aou_core.u_aou_tx_core.
+                   u_aou_tx_axi_buffer.w_aou_tx_s_axi_bid)),
+      .src_bresp(8'(u_dut.u_aou_core_top.u_aou_core.u_aou_tx_core.
+                    u_aou_tx_axi_buffer.w_aou_tx_s_axi_bresp)),
+      .src_push_valid(4'(u_dut.u_aou_core_top.u_aou_core.u_aou_tx_core.
+                         u_aou_tx_axi_buffer.O_AOU_TX_B_FIFO_SVALID)),
+      .src_push_ready(4'(u_dut.u_aou_core_top.u_aou_core.u_aou_tx_core.
+                         u_aou_tx_axi_buffer.w_granted_fifo_bready)),
+      .arb_grant(4'(u_dut.u_aou_core_top.u_aou_core.u_aou_tx_core.
+                    u_aou_tx_axi_buffer.w_granted_b_rp)),
+      .global_in_valid(u_dut.u_aou_core_top.u_aou_core.u_aou_tx_core.
+                       u_aou_tx_axi_buffer.w_aou_tx_fifo_s_axi_bvalid),
+      .global_in_ready(u_dut.u_aou_core_top.u_aou_core.u_aou_tx_core.
+                       u_aou_tx_axi_buffer.w_aou_tx_fifo_s_axi_bready),
+      .global_in_rp(u_dut.u_aou_core_top.u_aou_core.u_aou_tx_core.
+                    u_aou_tx_axi_buffer.w_aou_tx_fifo_s_axi_b_rp),
+      .global_in_bid(u_dut.u_aou_core_top.u_aou_core.u_aou_tx_core.
+                     u_aou_tx_axi_buffer.w_aou_tx_fifo_s_axi_bid),
+      .global_in_bresp(u_dut.u_aou_core_top.u_aou_core.u_aou_tx_core.
+                       u_aou_tx_axi_buffer.w_aou_tx_fifo_s_axi_bresp),
+      .global_out_valid(u_dut.u_aou_core_top.u_aou_core.u_aou_tx_core.
+                        u_aou_tx_axi_buffer.O_AOU_TX_M_AXI_BVALID),
+      .global_out_ready(u_dut.u_aou_core_top.u_aou_core.u_aou_tx_core.
+                        u_aou_tx_axi_buffer.I_AOU_TX_M_AXI_BREADY),
+      .global_out_rp(u_dut.u_aou_core_top.u_aou_core.u_aou_tx_core.
+                     u_aou_tx_axi_buffer.w_aou_tx_m_axi_b_rp),
+      .global_out_bid(u_dut.u_aou_core_top.u_aou_core.u_aou_tx_core.
+                      u_aou_tx_axi_buffer.w_aou_tx_m_axi_bid),
+      .global_out_bresp(u_dut.u_aou_core_top.u_aou_core.u_aou_tx_core.
+                        u_aou_tx_axi_buffer.w_aou_tx_m_axi_bresp),
+      .ring_write_ptr(u_dut.u_aou_core_top.u_aou_core.u_aou_tx_core.r_cur_granule_start),
+      .ring_read_ptr(u_dut.u_aou_core_top.u_aou_core.u_aou_tx_core.r_cur_flit_for_fifo_start),
+      .ring_ready(u_dut.u_aou_core_top.u_aou_core.u_aou_tx_core.
+                  w_ring_buffer_ready),
+      .ring_used(u_dut.u_aou_core_top.u_aou_core.u_aou_tx_core.r_cur_granule_start -
+                 u_dut.u_aou_core_top.u_aou_core.u_aou_tx_core.r_cur_flit_for_fifo_start),
+      .tx_pop_ok(u_dut.u_aou_core_top.u_aou_core.u_aou_tx_core.w_pop_ok),
+      .tx_rsp_credit_ready(
+          u_dut.u_aou_core_top.u_aou_core.u_aou_tx_core.I_TX_RSP_CREDIT_BLOCKn),
+      .tx_misc_activation_valid(
+          u_dut.u_aou_core_top.u_aou_core.u_aou_tx_core.w_misc_activation_valid),
+      .ring_flit_valid(u_dut.u_aou_core_top.u_aou_core.u_aou_tx_core.w_flit_fifo_valid),
+      .ring_flit_ready(u_dut.u_aou_core_top.u_aou_core.u_aou_tx_core.w_flit_fifo_ready),
+      .fdi_tx_valid(bci_fdi_tx_valid),
+      .fdi_tx_irdy(bci_fdi_tx_irdy),
+      .fdi_tx_ready(bci_fdi_tx_ready),
+      .tx_link_active(bci_fdi_tx_active)
+  );
 
   // ---------------------------------------------------------------------------
   // AXI: per-RP interfaces to the DUT's packed [RP_COUNT-1:0] ports. Each RP is
@@ -626,6 +702,8 @@ module tb_top;
     uvm_config_db #(virtual aou_fdi_lsm_if)::set(null, "*", "fdi_lsm", fdi_lsm);
     uvm_config_db #(virtual aou_apb_if #(.ADDR_W(32), .DATA_W(32)))::set(null, "*", "apb", apb);
     uvm_config_db #(virtual aou_status_if)::set(null, "*", "status", status);
+    uvm_config_db #(virtual aou_b_combiner_if)::set(
+        null, "*", "b_combiner", b_combiner);
     uvm_config_db #(virtual aou_irq_if)::set(null, "*", "irq", irq);
     uvm_config_db #(virtual aou_rst_if)::set(null, "*", "rst", rst);
     uvm_config_db #(virtual aou_axi4pc_ctl_if)::set(null, "*", "axi4pc_ctl", axi4pc_ctl);
