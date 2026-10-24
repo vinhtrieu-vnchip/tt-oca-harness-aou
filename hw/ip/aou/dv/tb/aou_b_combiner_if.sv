@@ -706,8 +706,10 @@ interface aou_b_combiner_if (
       if (!ring_ready) ring_full_samples++;
       if (|(src_valid & ~src_ready)) source_stall_cycles++;
 
-      ring_granule_writes += 32'(ring_write_ptr - prev_ring_write_ptr);
-      ring_granule_reads += 32'(ring_read_ptr - prev_ring_read_ptr);
+      // Constrain the subtraction to the wrapping pointer width before
+      // widening it for the cumulative counters.
+      ring_granule_writes += 32'(8'(ring_write_ptr - prev_ring_write_ptr));
+      ring_granule_reads += 32'(8'(ring_read_ptr - prev_ring_read_ptr));
       prev_ring_write_ptr = ring_write_ptr;
       prev_ring_read_ptr = ring_read_ptr;
       if (ring_flit_valid && ring_flit_ready) ring_flit_transfers++;
