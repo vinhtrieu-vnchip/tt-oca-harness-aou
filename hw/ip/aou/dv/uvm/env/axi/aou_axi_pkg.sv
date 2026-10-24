@@ -12,6 +12,33 @@ package aou_axi_pkg;
 
   typedef enum bit {AOU_AXI_WR, AOU_AXI_RD} aou_axi_dir_e;
 
+  typedef enum int unsigned {
+    AOU_AXI_CH_AW = 0,
+    AOU_AXI_CH_W  = 1,
+    AOU_AXI_CH_B  = 2,
+    AOU_AXI_CH_AR = 3,
+    AOU_AXI_CH_R  = 4
+  } aou_axi_ch_e;
+  localparam int unsigned AOU_AXI_CH_COUNT = 5;
+
+  typedef enum int unsigned {
+    AOU_AXI_STALL_ENTRY = 0,
+    AOU_AXI_SUSTAINED_STALL = 1,
+    AOU_AXI_STALL_RELEASE = 2,
+    AOU_AXI_STABILITY_ACTIVATION = 3
+  } aou_axi_stability_ev_e;
+
+  function automatic string aou_axi_ch_name(aou_axi_ch_e ch);
+    case (ch)
+      AOU_AXI_CH_AW: return "AW";
+      AOU_AXI_CH_W:  return "W";
+      AOU_AXI_CH_B:  return "B";
+      AOU_AXI_CH_AR: return "AR";
+      AOU_AXI_CH_R:  return "R";
+      default:       return "UNKNOWN";
+    endcase
+  endfunction
+
   localparam bit [1:0] AOU_AXI_FIXED = 2'b00;
   localparam bit [1:0] AOU_AXI_INCR  = 2'b01;
   localparam bit [1:0] AOU_AXI_WRAP  = 2'b10;

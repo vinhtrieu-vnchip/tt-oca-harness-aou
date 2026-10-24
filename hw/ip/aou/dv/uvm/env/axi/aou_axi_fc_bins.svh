@@ -13,3 +13,12 @@
 `define AOU_AXI_FC_X_TXN(B) \
   `B``_XIGN("*,size[0],*,unaligned")
 `define AOU_AXI_FC_ZERO(B) `B``_BIN(later, 0, 0) `B``_BIN(zero_cycle, 1, 1)
+
+// Sampled AXI backpressure events. The event cross keeps each channel's
+// reachability visible without treating a missing stimulus event as an error.
+`define AOU_AXI_FC_STABILITY_CH(B) \
+  `B``_BIN(aw, 0, 0) `B``_BIN(w, 1, 1) `B``_BIN(b, 2, 2) \
+  `B``_BIN(ar, 3, 3) `B``_BIN(r, 4, 4)
+`define AOU_AXI_FC_STABILITY_EV(B) \
+  `B``_BIN(stall_entry, 0, 0) `B``_BIN(sustained_stall, 1, 1) \
+  `B``_BIN(stall_release, 2, 2) `B``_BIN(stability_activation, 3, 3)

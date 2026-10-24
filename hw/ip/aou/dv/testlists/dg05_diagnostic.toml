@@ -1,0 +1,32 @@
+# DG05 sampled AXI stability/non-vacuity checks. Diagnostic-only; excluded from
+# all.toml and every PASS-only regression group. The negative case must FAIL at
+# the test's non-vacuity gate because only AW backpressure is requested.
+schema_version = 1
+
+[[tests]]
+name = "aou_axi_stability_test.st_bp-all.1x512-sp64"
+module = { uvm = "aou_axi_stability_test" }
+target = "1x512-sp64"
+seed = 1
+tags = ["dg05_diagnostic"]
+run_modes = ["matrix"]
+args = ["+st_bp=all", "+aou_axi_stability_obs=1"]
+
+[[tests]]
+name = "aou_axi_stability_test.gate-negative-aw.1x512-sp64"
+module = { uvm = "aou_axi_stability_test" }
+target = "1x512-sp64"
+seed = 1
+tags = ["dg05_diagnostic"]
+run_modes = ["matrix"]
+args = ["+st_bp=aw", "+dg05_negative_control=1", "+aou_axi_stability_obs=1"]
+
+[[groups]]
+name = "dg05_qualified"
+expected_count = 1
+tests = ["aou_axi_stability_test.st_bp-all.1x512-sp64"]
+
+[[groups]]
+name = "dg05_negative_control"
+expected_count = 1
+tests = ["aou_axi_stability_test.gate-negative-aw.1x512-sp64"]
