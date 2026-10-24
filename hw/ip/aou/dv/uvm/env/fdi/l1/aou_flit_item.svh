@@ -53,6 +53,9 @@ class aou_flit_item extends uvm_sequence_item;
   int unsigned          gap_before;     // idle cycles since the previous flit
   time                  t_start;
   time                  t_end;
+  // Accepted wire-beat times; replay overwrites cancelled-half observations.
+  time                  accepted_beat[8];
+  time                  committed_half[2];
 
   function new(string name = "aou_flit_item");
     super.new(name);

@@ -1,0 +1,106 @@
+# Exact-credit diagnostics; never included by all.toml or PASS-only groups.
+schema_version = 1
+
+[[tests]]
+name = "aou_credit_exactness_test.wreq.2xmix-tp64_128"
+module = { uvm = "aou_credit_exactness_test" }
+target = "2xmix-tp64_128"
+seed = 1
+tags = ["credit_exact_diagnostic"]
+run_modes = ["matrix"]
+args = ["+credit=wreq", "+limit=4"]
+
+[[tests]]
+name = "aou_credit_exactness_test.rreq.2xmix-tp64_128"
+module = { uvm = "aou_credit_exactness_test" }
+target = "2xmix-tp64_128"
+seed = 1
+tags = ["credit_exact_diagnostic"]
+run_modes = ["matrix"]
+args = ["+credit=rreq", "+limit=4"]
+
+[[tests]]
+name = "aou_credit_exactness_test.same.2xmix-tp64_128"
+module = { uvm = "aou_credit_exactness_test" }
+target = "2xmix-tp64_128"
+seed = 1
+tags = ["credit_exact_diagnostic"]
+run_modes = ["matrix"]
+args = ["+credit=wreq", "+limit=23", "+same_flit=1"]
+
+[[tests]]
+name = "aou_credit_exactness_test.saturation.2xmix-tp64_128"
+module = { uvm = "aou_credit_exactness_test" }
+target = "2xmix-tp64_128"
+seed = 1
+tags = ["credit_exact_diagnostic"]
+run_modes = ["matrix"]
+args = ["+credit=wreq", "+limit=100"]
+
+[[tests]]
+name = "aou_credit_exactness_test.isolation.2xmix-tp64_128"
+module = { uvm = "aou_credit_exactness_test" }
+target = "2xmix-tp64_128"
+seed = 1
+tags = ["credit_exact_diagnostic"]
+run_modes = ["matrix"]
+args = ["+credit=rreq", "+starve_rp=0", "+others_max=5000"]
+
+[[tests]]
+name = "aou_credit_exactness_test.under.2xmix-tp64_128"
+module = { uvm = "aou_credit_exactness_test" }
+target = "2xmix-tp64_128"
+seed = 1
+tags = ["credit_exact_diagnostic"]
+run_modes = ["matrix"]
+args = ["+credit=wreq", "+limit=4", "+credit_budget_negative=under"]
+
+[[tests]]
+name = "aou_credit_exactness_test.over.2xmix-tp64_128"
+module = { uvm = "aou_credit_exactness_test" }
+target = "2xmix-tp64_128"
+seed = 1
+tags = ["credit_exact_diagnostic"]
+run_modes = ["matrix"]
+args = ["+credit=wreq", "+limit=4", "+credit_exact_negative=over"]
+
+[[tests]]
+name = "aou_credit_exactness_test.rp.2xmix-tp64_128"
+module = { uvm = "aou_credit_exactness_test" }
+target = "2xmix-tp64_128"
+seed = 1
+tags = ["credit_exact_diagnostic"]
+run_modes = ["matrix"]
+args = ["+credit=wreq", "+limit=4", "+credit_exact_negative=rp"]
+
+[[tests]]
+name = "aou_credit_exactness_test.class.2xmix-tp64_128"
+module = { uvm = "aou_credit_exactness_test" }
+target = "2xmix-tp64_128"
+seed = 1
+tags = ["credit_exact_diagnostic"]
+run_modes = ["matrix"]
+args = ["+credit=wreq", "+limit=4", "+credit_exact_negative=class"]
+
+[[tests]]
+name = "aou_credit_exactness_test.duplicate.2xmix-tp64_128"
+module = { uvm = "aou_credit_exactness_test" }
+target = "2xmix-tp64_128"
+seed = 1
+tags = ["credit_exact_diagnostic"]
+run_modes = ["matrix"]
+args = ["+credit=wreq", "+limit=4", "+credit_exact_negative=duplicate"]
+
+[[tests]]
+name = "aou_credit_exactness_test.same_negative.2xmix-tp64_128"
+module = { uvm = "aou_credit_exactness_test" }
+target = "2xmix-tp64_128"
+seed = 1
+tags = ["credit_exact_diagnostic"]
+run_modes = ["matrix"]
+args = ["+credit=wreq", "+limit=23", "+same_flit=1", "+credit_exact_negative=same"]
+
+[[groups]]
+name = "credit_exact_diagnostic"
+expected_count = 11
+tests = ["aou_credit_exactness_test.wreq.2xmix-tp64_128", "aou_credit_exactness_test.rreq.2xmix-tp64_128", "aou_credit_exactness_test.same.2xmix-tp64_128", "aou_credit_exactness_test.saturation.2xmix-tp64_128", "aou_credit_exactness_test.isolation.2xmix-tp64_128", "aou_credit_exactness_test.under.2xmix-tp64_128", "aou_credit_exactness_test.over.2xmix-tp64_128", "aou_credit_exactness_test.rp.2xmix-tp64_128", "aou_credit_exactness_test.class.2xmix-tp64_128", "aou_credit_exactness_test.duplicate.2xmix-tp64_128", "aou_credit_exactness_test.same_negative.2xmix-tp64_128"]

@@ -190,6 +190,7 @@ class aou_fdi_monitor extends uvm_monitor;
     end
     chk("FDI-R01");
     tx_cur.put_beat(cfg.beat_bytes, tx_beat, vif.mon_cb.lp_data);
+    tx_cur.accepted_beat[tx_beat] = $time;
     tx_beat++;
     if (tx_beat == cfg.bpf()) begin
       tx_cur.t_end = $time;
@@ -274,8 +275,9 @@ class aou_fdi_monitor extends uvm_monitor;
         n_rx_cancels++;
         if (cov != null) cov.sample_cancel(half, v, count, stalled);
       end
-    end else if (rx_half_done && rx_beat == cfg.bpf()) begin
-      publish_rx();
+    end else if (rx_half_done && rx_cur != null) begin
+      rx_cur.committed_half[(rx_beat == cfg.bpf()) ? 1 : 0] = $time;
+      if (rx_beat == cfg.bpf()) publish_rx();
     end
     rx_half_done = 1'b0;
     abandon_h_done = 1'b0;
@@ -306,6 +308,7 @@ class aou_fdi_monitor extends uvm_monitor;
       rx_bubbles = 0;
     end
     rx_cur.put_beat(cfg.beat_bytes, rx_beat, vif.mon_cb.pl_data);
+    rx_cur.accepted_beat[rx_beat] = $time;
     rx_beat++;
     rx_half_done = (rx_beat % cfg.bph()) == 0;
   endfunction
@@ -321,6 +324,15 @@ class aou_fdi_monitor extends uvm_monitor;
     ap_rx.write(rx_cur);
     rx_cur = null;
     rx_beat = 0;
+  endfunction
+
+  // A future completed flit can contain an event as early as this edge.
+  // Credit observers use this watermark rather than a fixed timing allowance.
+  function time pending_wire_start();
+    time oldest = 0;
+    if (rx_cur != null) oldest = rx_cur.t_start;
+    if (tx_cur != null && (oldest == 0 || tx_cur.t_start < oldest)) oldest = tx_cur.t_start;
+    return oldest;
   endfunction
 
   function void report_phase(uvm_phase phase);

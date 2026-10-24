@@ -185,6 +185,7 @@ package aou_t1_env_pkg;
   `include "aou_t1_env_fc_bins.svh"
   `include "aou_t1_b_identity_chk.svh"
   `include "aou_t1_b_identity_corruptor.svh"
+  `include "aou_t1_credit_exact_chk.svh"
   `include "aou_t1_crd_flow_chk.svh"
   `include "aou_t1_crd_rr_chk.svh"
   `include "aou_t1_early_tbl_chk.svh"

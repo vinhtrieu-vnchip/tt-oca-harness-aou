@@ -35,6 +35,7 @@ class aou_t1_env extends uvm_env;
   aou_t1_lp_cfg_chk    lp_cfg_chk;
   aou_t1_dbg_fifo_chk  dbg_chk;
   aou_t1_crd_flow_chk  crd_chk;
+  aou_t1_credit_exact_chk exact_chk;
   aou_t1_crd_rr_chk    crd_rr;
   aou_t1_early_tbl_chk early_tbl;
   aou_t1_attr_chk      attr_chk;
@@ -123,6 +124,8 @@ class aou_t1_env extends uvm_env;
     dbg_chk.cfg = cfg;
     crd_chk = aou_t1_crd_flow_chk::type_id::create("crd_chk", this);
     crd_chk.cfg = cfg;
+    exact_chk = aou_t1_credit_exact_chk::type_id::create("exact_chk", this);
+    exact_chk.cfg = cfg;
     crd_rr = aou_t1_crd_rr_chk::type_id::create("crd_rr", this);
     crd_rr.n_rp = cfg.n_rp;
     rx_align = aou_t1_rx_align_chk::type_id::create("rx_align", this);
@@ -152,6 +155,11 @@ class aou_t1_env extends uvm_env;
       fdi[p].mon.ap_tx.connect(bridge.l1_imp);
     end
     bridge.ap.connect(l3.rx_flit_imp);
+    foreach (fdi[p]) fdi[p].mon.ap_tx.connect(exact_chk.admit_imp);
+    fdi[cfg.lsm_cfg.active_phy].mon.ap_rx.connect(exact_chk.grant_imp);
+    exact_chk.rst_vif = rst.vif;
+    exact_chk.wire_mon = fdi[cfg.lsm_cfg.active_phy].mon;
+    exact_chk.model = l3.model;
     l3.ap_rx_msg.connect(rmgr.rx_imp);
     if (identity_corruptor == null)
       l3.ap_rx_msg.connect(identity_chk.analysis_export);

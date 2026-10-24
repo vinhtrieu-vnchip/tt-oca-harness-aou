@@ -43,7 +43,8 @@ CLASS_RE = re.compile(r"^\s*class\s+(\w+)\s+extends", re.M)
 ESCAPE_KEYS = {"test", "escape", "tb", "target", "args", "seed", "reseed", "build", "signature",
                "axi4pc", "note"}
 DIAGNOSTIC_ONLY_T1_LISTS = (
-    "dg04_diagnostic.toml", "dg04_identity_controls.toml", "dg05_diagnostic.toml")
+    "dg04_diagnostic.toml", "dg04_identity_controls.toml", "dg05_diagnostic.toml",
+    "credit_exact_diagnostic.toml")
 
 
 def test_dirs(tb):

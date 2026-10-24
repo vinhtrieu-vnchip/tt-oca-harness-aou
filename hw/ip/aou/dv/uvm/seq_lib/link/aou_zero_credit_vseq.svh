@@ -131,36 +131,153 @@ class aou_zero_credit_vseq extends aou_link_base_vseq;
 
   task credit_limit(aou_cred_class_e c, int unsigned k);
     int unsigned hold = arg_int("hold", 3000);
+    int unsigned admit_timeout = arg_int("admit_timeout", 50000);
     aou_t1_traffic_cfg p = profile_for(c);
     aou_cred_ret_e ret = cfg.l3_cfg.ret_policy[c];
+    bit same_flit = 1'(arg_int("same_flit", 0));
+    int unsigned grant_granules = k * REQ_GRANULES;
+    int unsigned usable_granules;
+    int unsigned expected_starts;
+    int unsigned starts_before[AOU_RP_MAX];
+    int unsigned initial_granules[AOU_RP_MAX];
+    int unsigned same_flit_before;
     int unsigned n = num_txns;
     if (!(c inside {AOU_CC_WREQ, AOU_CC_RREQ}))
       `uvm_fatal(get_type_name(), "+limit needs +credit=wreq or +credit=rreq")
+    if (k == 0 || k > (32'hffff_ffff / REQ_GRANULES))
+      `uvm_fatal(get_type_name(), "+limit must be nonzero and fit the granule counter")
+    for (int unsigned r = 0; r < cfg.n_rp; r++) begin
+      int unsigned wire_rp = env.crd_chk.wire_of(r);
+      if (wire_rp >= cfg.l3_cfg.rp_count)
+        `uvm_fatal(get_type_name(), $sformatf(
+            "RP%0d maps to unavailable wire RP%0d", r, wire_rp))
+      for (int unsigned s = r + 1; s < cfg.n_rp; s++)
+        if (wire_rp == env.crd_chk.wire_of(s))
+          `uvm_fatal(get_type_name(), $sformatf(
+              "finite credit needs unique DEST_RP: RP%0d and RP%0d map to RP%0d",
+              r, s, wire_rp))
+    end
+    if (same_flit) begin
+      if (c != AOU_CC_WREQ || k < 2)
+        `uvm_fatal(get_type_name(), "+same_flit requires +credit=wreq and +limit>=2")
+      // Leave two WREQ granules after the largest CrdtGrant field (64) and
+      // smallest legal MsgCredit field (4): 68 total, 22 whole requests.
+      grant_granules = k * REQ_GRANULES - 1;
+    end
+    same_flit_before = env.exact_chk.same_flit[c];
     // Every RP must queue more requests than its credit covers.
     if (n < k + 4) n = k + 4;
-    p.num_slots = n;
+    // num_slots is the count of pages in the bounded address window, not the
+    // transaction count. Keep the profile's valid page pool for large limits.
+    if (n < p.num_slots) p.num_slots = n;
     p.max_len = 0;
+    usable_granules = (grant_granules < env.exact_chk.credit_max) ? grant_granules :
+                      env.exact_chk.credit_max;
+    expected_starts = usable_granules / REQ_GRANULES;
+    // The peer may legally over-grant; the DUT's counter saturates at its
+    // maximum and this condition alone is not an AOU-R21 protocol failure.
+
     `uvm_info(get_type_name(), $sformatf("%s credit for %0d requests per RP, %0d queued per RP",
                                          aou_cc_name(c), k, n), UVM_LOW)
     link_up();
-    cfg.l3_cfg.rx_depth[c] = k * REQ_GRANULES;
-    cfg.l3_cfg.ret_policy[c] = AOU_RET_WITHHELD;
-    env.l3.model.crd.reset_link();
-    sw_activate();
+    if (grant_granules > env.exact_chk.credit_max) begin
+      // Complete mandatory activation/bootstrap exchange first. Then withhold
+      // returns and inject only the additional over-grant for the test.
+      sw_activate();
+      cfg.l3_cfg.ret_policy[c] = AOU_RET_WITHHELD;
+      foreach (starts_before[r]) begin
+        starts_before[r] = env.crd_chk.dut_msg_starts[r][c];
+        initial_granules[r] = env.l3.model.crd.rx_outstanding[env.crd_chk.wire_of(r)][c];
+      end
+      for (int unsigned r = 0; r < cfg.n_rp; r++) begin
+        int unsigned wire_rp = env.crd_chk.wire_of(r);
+        int unsigned additional = grant_granules > initial_granules[r] ?
+                                  grant_granules - initial_granules[r] : 0;
+        grant_rp(c, wire_rp, additional);
+      end
+    end else begin
+      // Establish the finite budget before activation, from a clean ledger.
+      cfg.l3_cfg.rx_depth[c] = grant_granules;
+      cfg.l3_cfg.ret_policy[c] = AOU_RET_WITHHELD;
+      env.l3.model.crd.reset_link();
+      sw_activate();
+      foreach (starts_before[r]) starts_before[r] = env.crd_chk.dut_msg_starts[r][c];
+    end
+    // Credit-only returns must reach the DUT before demand is presented.
+    begin
+      bit pending;
+      for (int unsigned t = 0; t < 4000; t++) begin
+        pending = 1'b0;
+        for (int unsigned r = 0; r < cfg.n_rp; r++)
+          if (env.l3.model.crd.rx_pending[env.crd_chk.wire_of(r)][c] != 0) pending = 1'b1;
+        if (!pending) break;
+        wait_cycles(1);
+      end
+      pending = 1'b0;
+      for (int unsigned r = 0; r < cfg.n_rp; r++)
+        if (env.l3.model.crd.rx_pending[env.crd_chk.wire_of(r)][c] != 0) pending = 1'b1;
+      if (pending) begin
+        aou_rule_log::fire("T1-C43", get_type_name());
+        `uvm_error(get_type_name(), $sformatf("T1-C43: %s grant setup did not drain",
+                                              aou_cc_name(c)))
+      end
+    end
+    wait_cycles(256);
+    if (same_flit && env.exact_chk.same_flit[c] == same_flit_before) begin
+      aou_rule_log::fire("T1-C43", get_type_name());
+      `uvm_error(get_type_name(), "T1-C43: WREQ MsgCredit and CrdtGrant were not in one flit")
+    end
     traffic_nb(AOU_T1_L2R, n, p);
+    begin
+      bit reached;
+      for (int unsigned t = 0; t < admit_timeout; t++) begin
+        bit all_reached = 1'b1;
+        for (int unsigned r = 0; r < cfg.n_rp; r++) begin
+          int unsigned seen = env.crd_chk.dut_msg_starts[r][c] - starts_before[r];
+          if (seen < expected_starts) all_reached = 1'b0;
+        end
+        if (all_reached) begin
+          reached = 1'b1;
+          break;
+        end
+        wait_cycles(1);
+      end
+      if (!reached) begin
+        aou_rule_log::fire("T1-C43", get_type_name());
+        `uvm_error(get_type_name(), $sformatf(
+            "T1-C43: expected admitted-message boundary not reached within %0d cycles",
+            admit_timeout))
+      end
+    end
     wait_cycles(hold);
-    for (int unsigned r = 0; r < cfg.n_rp; r++) begin
-      int unsigned left = env.l3.model.crd.rx_outstanding[r][c];
-      `uvm_info(get_type_name(), $sformatf("RP%0d: %0d of %0d %s sent on credit, %0d credits left",
-                                           r, (k * REQ_GRANULES - left) / REQ_GRANULES, k,
-                                           aou_cc_name(c), left), UVM_LOW)
+    begin
+      bit exact_on_every_rp = 1'b1;
+      for (int unsigned r = 0; r < cfg.n_rp; r++) begin
+        int unsigned wire_rp = env.crd_chk.wire_of(r);
+        int unsigned left = env.l3.model.crd.rx_outstanding[wire_rp][c];
+        int unsigned seen = env.crd_chk.dut_msg_starts[r][c] - starts_before[r];
+        `uvm_info(get_type_name(), $sformatf(
+            "RP%0d: %0d of %0d %s messages started on credit, %0d credits left",
+            r, seen, expected_starts, aou_cc_name(c), left), UVM_LOW)
+        if (!env.crd_chk.check_exact_budget_count(
+                r, c, seen, expected_starts, "before credit release")) begin
+          exact_on_every_rp = 1'b0;
+        end
+      end
+      if (exact_on_every_rp) env.crd_chk.sample_exact_finite_budget(c);
     end
     if (n_traffic == 0)
-      `uvm_error(get_type_name(), $sformatf("T1-L11: traffic completed on %0d %s credits",
-                                            k, aou_cc_name(c)))
+      `uvm_error(get_type_name(), $sformatf(
+          "T1-C43: queued demand completed before credit release (%0d %s credits)",
+          grant_granules, aou_cc_name(c)))
     cfg.l3_cfg.ret_policy[c] = ret;
     env.l3.model.release_withheld();
     wait_traffic();
+    for (int unsigned r = 0; r < cfg.n_rp; r++) begin
+      int unsigned seen = env.crd_chk.dut_msg_starts[r][c] - starts_before[r];
+      void'(env.crd_chk.check_exact_budget_count(
+          r, c, seen, n, "after credit release"));
+    end
     drain();
     sw_deactivate();
   endtask

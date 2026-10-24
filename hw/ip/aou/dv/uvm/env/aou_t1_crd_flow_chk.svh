@@ -81,6 +81,9 @@ class aou_t1_crd_flow_chk extends uvm_component;
   int unsigned n_c01;
   int unsigned n_c02;
 
+  // Complete messages decoded from accepted DUT FDI flits, per source RP/class.
+  int unsigned dut_msg_starts[AOU_RP_MAX][AOU_CC_NUM];
+
   // S-port requests accepted and not yet sent, then sent and not yet answered.
   protected bit [9:0]    aw_pend[AOU_RP_MAX][$];
   protected bit [9:0]    ar_pend[AOU_RP_MAX][$];
@@ -235,6 +238,8 @@ class aou_t1_crd_flow_chk extends uvm_component;
     aou_msg_rdata d;
     aou_cred_class_e c = m.cred_class();
     if (c == AOU_CC_NONE) return;
+    for (int unsigned x = 0; x < cfg.n_rp; x++)
+      if (wire_of(x) == int'(m.rp)) dut_msg_starts[x][c]++;
     sent[c] = 1'b1;
     last_msg[c] = cyc;
     for (int unsigned x = 0; x < cfg.n_rp; x++) begin
@@ -379,6 +384,28 @@ class aou_t1_crd_flow_chk extends uvm_component;
     s_ev = ev;
     cg_crd.sample();
     fc_crd.sample(int'(c), int'(ev));
+  endfunction
+
+  // Directed credit-limit sequences call this only after the independently
+  // observed DUT TX message count exactly matches the finite credit budget.
+  function void sample_exact_finite_budget(aou_cred_class_e c);
+    sample(int'(c), 2);
+  endfunction
+
+  // The directed finite-budget sequence and its isolated sensitivity test use
+  // this same fail-closed comparison.  A mismatch is a production T1-C43
+  // error; the sensitivity test deliberately supplies corrupted observations
+  // and is therefore expected to fail the normal result gate.
+  function bit check_exact_budget_count(int unsigned rp, aou_cred_class_e c,
+                                        int unsigned observed, int unsigned expected,
+                                        string checkpoint);
+    aou_rule_log::check("T1-C43", get_type_name());
+    if (observed == expected) return 1'b1;
+    aou_rule_log::fire("T1-C43", get_type_name());
+    `uvm_error(get_type_name(), $sformatf(
+        "T1-C43: RP%0d %s at %s observed %0d messages; expected exactly %0d",
+        rp, aou_cc_name(c), checkpoint, observed, expected))
+    return 1'b0;
   endfunction
 
   protected function void cover_rp(int unsigned x, bit any_starved);

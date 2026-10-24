@@ -5,6 +5,7 @@
 `include "link/aou_link_act_deact_test.svh"
 `include "link/aou_link_force_deact_test.svh"
 `include "link/aou_zero_credit_test.svh"
+`include "link/aou_credit_exactness_test.svh"
 `include "link/aou_credit_return_test.svh"
 `include "link/aou_act_after_deact_test.svh"
 `include "link/aou_rx_credit_test.svh"
