@@ -137,7 +137,8 @@ class aou_zero_credit_vseq extends aou_link_base_vseq;
     bit same_flit = 1'(arg_int("same_flit", 0));
     int unsigned grant_granules = k * REQ_GRANULES;
     int unsigned usable_granules;
-    int unsigned expected_starts;
+    int unsigned expected_starts[AOU_RP_MAX];
+    bit oversupplied;
     int unsigned starts_before[AOU_RP_MAX];
     int unsigned initial_granules[AOU_RP_MAX];
     int unsigned same_flit_before;
@@ -171,16 +172,16 @@ class aou_zero_credit_vseq extends aou_link_base_vseq;
     // transaction count. Keep the profile's valid page pool for large limits.
     if (n < p.num_slots) p.num_slots = n;
     p.max_len = 0;
-    usable_granules = (grant_granules < env.exact_chk.credit_max) ? grant_granules :
-                      env.exact_chk.credit_max;
-    expected_starts = usable_granules / REQ_GRANULES;
-    // The peer may legally over-grant; the DUT's counter saturates at its
-    // maximum and this condition alone is not an AOU-R21 protocol failure.
-
+    for (int unsigned r=0;r<cfg.n_rp;r++) begin
+      int unsigned cap=env.exact_chk.credit_max[env.crd_chk.wire_of(r)][c];
+      usable_granules=(grant_granules<cap)?grant_granules:cap;
+      expected_starts[r]=usable_granules/REQ_GRANULES;
+      if (grant_granules>cap) oversupplied=1'b1;
+    end
     `uvm_info(get_type_name(), $sformatf("%s credit for %0d requests per RP, %0d queued per RP",
                                          aou_cc_name(c), k, n), UVM_LOW)
     link_up();
-    if (grant_granules > env.exact_chk.credit_max) begin
+    if (oversupplied) begin
       // Complete mandatory activation/bootstrap exchange first. Then withhold
       // returns and inject only the additional over-grant for the test.
       sw_activate();
@@ -227,6 +228,31 @@ class aou_zero_credit_vseq extends aou_link_base_vseq;
       aou_rule_log::fire("T1-C43", get_type_name());
       `uvm_error(get_type_name(), "T1-C43: WREQ MsgCredit and CrdtGrant were not in one flit")
     end
+    if (arg_int("split_grant",0)!=0) begin
+      aou_msg_crdtgrant g=aou_msg_crdtgrant::type_id::create("split_grant");
+      int old_start=cfg.l3_cfg.pol.start_granule;
+      int unsigned before_split=env.exact_chk.split_grants;
+      // G11 spans wire bytes 57..70, crossing a 64-byte RX chunk. Build a
+      // legal grant through the existing credit manager and message packer.
+      for(int unsigned r=0;r<cfg.n_rp;r++)
+        env.l3.model.crd.inject_overgrant(env.crd_chk.wire_of(r),c,4);
+      if(!env.l3.model.crd.take_grant(g))
+        `uvm_fatal(get_type_name(),"split-grant stimulus could not encode credit")
+      cfg.l3_cfg.pol.start_granule=11;
+      env.l3.send(g);
+      for(int unsigned t=0;t<1000;t++) begin
+        if(env.exact_chk.split_grants>before_split) break;
+        wait_cycles(1);
+      end
+      cfg.l3_cfg.pol.start_granule=old_start;
+      grant_granules+=4;
+      for(int unsigned r=0;r<cfg.n_rp;r++) begin
+        int unsigned cap=env.exact_chk.credit_max[env.crd_chk.wire_of(r)][c];
+        expected_starts[r]=((grant_granules<cap)?grant_granules:cap)/REQ_GRANULES;
+      end
+      if(env.exact_chk.split_grants==before_split)
+        `uvm_info(get_type_name(),"C1C coverage shortfall: no split CrdtGrant observed",UVM_LOW)
+    end
     traffic_nb(AOU_T1_L2R, n, p);
     begin
       bit reached;
@@ -234,7 +260,7 @@ class aou_zero_credit_vseq extends aou_link_base_vseq;
         bit all_reached = 1'b1;
         for (int unsigned r = 0; r < cfg.n_rp; r++) begin
           int unsigned seen = env.crd_chk.dut_msg_starts[r][c] - starts_before[r];
-          if (seen < expected_starts) all_reached = 1'b0;
+          if (seen < expected_starts[r]) all_reached = 1'b0;
         end
         if (all_reached) begin
           reached = 1'b1;
@@ -258,9 +284,9 @@ class aou_zero_credit_vseq extends aou_link_base_vseq;
         int unsigned seen = env.crd_chk.dut_msg_starts[r][c] - starts_before[r];
         `uvm_info(get_type_name(), $sformatf(
             "RP%0d: %0d of %0d %s messages started on credit, %0d credits left",
-            r, seen, expected_starts, aou_cc_name(c), left), UVM_LOW)
+            r, seen, expected_starts[r], aou_cc_name(c), left), UVM_LOW)
         if (!env.crd_chk.check_exact_budget_count(
-                r, c, seen, expected_starts, "before credit release")) begin
+                r, c, seen, expected_starts[r], "before credit release")) begin
           exact_on_every_rp = 1'b0;
         end
       end

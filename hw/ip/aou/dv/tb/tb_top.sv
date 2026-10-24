@@ -708,6 +708,47 @@ module tb_top;
     uvm_config_db #(virtual aou_rst_if)::set(null, "*", "rst", rst);
     uvm_config_db #(virtual aou_axi4pc_ctl_if)::set(null, "*", "axi4pc_ctl", axi4pc_ctl);
     uvm_config_db #(virtual aou_fdi_checker_if)::set(null, "*", "fdi_chk", fdi_chk);
+    // Read compiled integration capacities; never override a DUT parameter.
+    uvm_config_db #(int unsigned)::set(null, "*", "credit_max_0_0",
+        u_dut.u_aou_core_top.u_aou_core.RP0_TX_AW_MAX_CREDIT);
+    uvm_config_db #(int unsigned)::set(null, "*", "credit_max_0_1",
+        u_dut.u_aou_core_top.u_aou_core.RP0_TX_AR_MAX_CREDIT);
+    uvm_config_db #(int unsigned)::set(null, "*", "credit_max_0_2",
+        u_dut.u_aou_core_top.u_aou_core.RP0_TX_W_MAX_CREDIT);
+    uvm_config_db #(int unsigned)::set(null, "*", "credit_max_0_3",
+        u_dut.u_aou_core_top.u_aou_core.RP0_TX_R_MAX_CREDIT);
+    uvm_config_db #(int unsigned)::set(null, "*", "credit_max_0_4",
+        u_dut.u_aou_core_top.u_aou_core.RP0_TX_B_MAX_CREDIT);
+    uvm_config_db #(int unsigned)::set(null, "*", "credit_max_1_0",
+        u_dut.u_aou_core_top.u_aou_core.RP1_TX_AW_MAX_CREDIT);
+    uvm_config_db #(int unsigned)::set(null, "*", "credit_max_1_1",
+        u_dut.u_aou_core_top.u_aou_core.RP1_TX_AR_MAX_CREDIT);
+    uvm_config_db #(int unsigned)::set(null, "*", "credit_max_1_2",
+        u_dut.u_aou_core_top.u_aou_core.RP1_TX_W_MAX_CREDIT);
+    uvm_config_db #(int unsigned)::set(null, "*", "credit_max_1_3",
+        u_dut.u_aou_core_top.u_aou_core.RP1_TX_R_MAX_CREDIT);
+    uvm_config_db #(int unsigned)::set(null, "*", "credit_max_1_4",
+        u_dut.u_aou_core_top.u_aou_core.RP1_TX_B_MAX_CREDIT);
+    uvm_config_db #(int unsigned)::set(null, "*", "credit_max_2_0",
+        u_dut.u_aou_core_top.u_aou_core.RP2_TX_AW_MAX_CREDIT);
+    uvm_config_db #(int unsigned)::set(null, "*", "credit_max_2_1",
+        u_dut.u_aou_core_top.u_aou_core.RP2_TX_AR_MAX_CREDIT);
+    uvm_config_db #(int unsigned)::set(null, "*", "credit_max_2_2",
+        u_dut.u_aou_core_top.u_aou_core.RP2_TX_W_MAX_CREDIT);
+    uvm_config_db #(int unsigned)::set(null, "*", "credit_max_2_3",
+        u_dut.u_aou_core_top.u_aou_core.RP2_TX_R_MAX_CREDIT);
+    uvm_config_db #(int unsigned)::set(null, "*", "credit_max_2_4",
+        u_dut.u_aou_core_top.u_aou_core.RP2_TX_B_MAX_CREDIT);
+    uvm_config_db #(int unsigned)::set(null, "*", "credit_max_3_0",
+        u_dut.u_aou_core_top.u_aou_core.RP3_TX_AW_MAX_CREDIT);
+    uvm_config_db #(int unsigned)::set(null, "*", "credit_max_3_1",
+        u_dut.u_aou_core_top.u_aou_core.RP3_TX_AR_MAX_CREDIT);
+    uvm_config_db #(int unsigned)::set(null, "*", "credit_max_3_2",
+        u_dut.u_aou_core_top.u_aou_core.RP3_TX_W_MAX_CREDIT);
+    uvm_config_db #(int unsigned)::set(null, "*", "credit_max_3_3",
+        u_dut.u_aou_core_top.u_aou_core.RP3_TX_R_MAX_CREDIT);
+    uvm_config_db #(int unsigned)::set(null, "*", "credit_max_3_4",
+        u_dut.u_aou_core_top.u_aou_core.RP3_TX_B_MAX_CREDIT);
     run_test();
   end
 `endif

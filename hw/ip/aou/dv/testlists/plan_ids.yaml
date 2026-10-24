@@ -9,6 +9,7 @@
 # T1/register scenario has plan IDs ('' states that it covers none).
 
 plan_ids:
+  aou_credit_exactness_test.split.2xmix-tp64_128: '8.3,8.6'
   aou_credit_exactness_test.wreq.2xmix-tp64_128: '8.3,8.6'
   aou_credit_exactness_test.rreq.2xmix-tp64_128: '8.3,8.6'
   aou_credit_exactness_test.same.2xmix-tp64_128: '8.3,8.6'

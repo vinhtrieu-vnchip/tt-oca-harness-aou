@@ -19,7 +19,7 @@ class aou_t1_credit_exact_chk extends uvm_component;
   int unsigned aborted_events;
   virtual aou_rst_if rst_vif;
   aou_fdi_monitor wire_mon;
-  int unsigned credit_max = 255;  // supported configurations: 8-bit TX counters
+  int unsigned credit_max[AOU_RP_MAX][AOU_CC_NUM];
   int unsigned epoch;
   int unsigned balance[AOU_RP_MAX][AOU_CC_NUM];
   int unsigned granted[AOU_RP_MAX][AOU_CC_NUM];
@@ -86,6 +86,11 @@ class aou_t1_credit_exact_chk extends uvm_component;
 
   function void build_phase(uvm_phase phase);
     super.build_phase(phase);
+    foreach (credit_max[r, c])
+    if (!uvm_config_db#(int unsigned)::get(
+            null, "*", $sformatf("credit_max_%0d_%0d", r, c), credit_max[r][c]
+        ) || credit_max[r][c] == 0)
+      `uvm_fatal(get_type_name(), "missing compiled TX credit capacity")
     void'($value$plusargs("credit_exact_negative=%s", negative));
     if (negative != "" && !(negative inside {"over", "rp", "class", "duplicate", "same"}))
       `uvm_fatal(get_type_name(), "unknown credit_exact_negative mode")
@@ -220,7 +225,7 @@ class aou_t1_credit_exact_chk extends uvm_component;
 
   function void audit(int unsigned r, int unsigned c);
     aou_rule_log::check("T1-C43", get_type_name());
-    if (balance[r][c]>credit_max || granted[r][c] !=
+    if (balance[r][c]>credit_max[r][c] || granted[r][c] !=
         balance[r][c]+consumed[r][c]+discarded[r][c])
       fail($sformatf(
            "epoch%0d RP%0d class%0d ledger balance=%0d grant=%0d used=%0d lost=%0d",
@@ -239,10 +244,10 @@ class aou_t1_credit_exact_chk extends uvm_component;
     if (n == 0) return;
     granted[r][c] += n;
     total_granted[r][c] += n;
-    if (sum > credit_max) begin
-      discarded[r][c] += sum - credit_max;
-      total_discarded[r][c] += sum - credit_max;
-      balance[r][c] = credit_max;
+    if (sum > credit_max[r][c]) begin
+      discarded[r][c] += sum - credit_max[r][c];
+      total_discarded[r][c] += sum - credit_max[r][c];
+      balance[r][c] = credit_max[r][c];
       sample (r, c, 3);
     end else balance[r][c] = sum;
     sample (r, c, 0);
