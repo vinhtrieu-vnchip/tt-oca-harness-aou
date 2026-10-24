@@ -140,7 +140,7 @@ class aou_t1_credit_exact_chk extends uvm_component;
     for (int c = 0; c < AOU_CC_NUM; c++) begin
       int unsigned n = cg.get_cred(r, aou_cred_class_e'(c));
       bit both = (r == hr && hn[c] != 0 && n != 0);
-      if (n != 0) queue_event('{stamp, 1'b1, r, aou_cred_class_e'(c), n, 40'b0, both});
+      if (n != 0) queue_event('{stamp, 2'd1, r, aou_cred_class_e'(c), n, 40'b0, both});
       if (n != 0) cg_seen[r][c] = 1'b1;
     end
   endfunction
@@ -228,7 +228,7 @@ class aou_t1_credit_exact_chk extends uvm_component;
         continue;
       end
       if (r < AOU_RP_MAX) wire_cost[r][c] += n;
-      queue_event('{stamp, 1'b0, r, c, n, f.g[g], 1'b0});
+      queue_event('{stamp, 2'd0, r, c, n, f.g[g], 1'b0});
     end
   endfunction
 
