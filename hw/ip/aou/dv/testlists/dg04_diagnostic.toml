@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: © 2026 Tenstorrent USA Inc
+
 # DG04 observe-only TX B-response combiner qualification. Diagnostic-only;
 # intentionally excluded from all.toml and every PASS-only regression group.
 schema_version = 1

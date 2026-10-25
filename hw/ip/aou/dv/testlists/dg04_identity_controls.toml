@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: © 2026 Tenstorrent USA Inc
+
 # Standalone DG04 correlation-checker negative controls. These mutate only the
 # checker model and remain separate from the positive production diagnostic.
 schema_version = 1
