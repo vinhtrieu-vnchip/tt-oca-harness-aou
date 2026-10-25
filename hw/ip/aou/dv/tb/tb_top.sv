@@ -216,10 +216,12 @@ module tb_top;
   aou_status_if                    status ();
   aou_irq_if                       irq (.clk(clk));
   aou_fdi_checker_if               fdi_chk (.clk(clk));
+  // Match the TX FIFOs: AOU_SW_RESET also starts a new observer epoch.
+  // Pending records still report interrupted delivery; they are never credited.
   aou_b_combiner_if b_combiner (
       .active_rp_count(3'(RP_COUNT)),
       .clk(clk),
-      .rst_n(rst_n),
+      .rst_n(rst.core_rst_n),
       .src_valid(4'(u_dut.u_aou_core_top.u_aou_core.u_aou_tx_core.
                    u_aou_tx_axi_buffer.w_aou_tx_s_axi_bvalid)),
       .src_ready(4'(u_dut.u_aou_core_top.u_aou_core.u_aou_tx_core.
