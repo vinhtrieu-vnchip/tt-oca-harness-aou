@@ -409,9 +409,12 @@ class aou_lsm_driver extends uvm_driver #(aou_lsm_item);
       n++;
     end
     if (!selected) begin
-      `uvm_info(get_type_name(), $sformatf(
-                "LinkError: no %s flit in flight; entered at a boundary",
-                cfg.le_mid_flit_dir), UVM_LOW)
+      if (cfg.le_mid_flit_dir inside {"tx", "rx"})
+        `uvm_error(get_type_name(), $sformatf(
+                   "directed LinkError could not enter inside a %s flit within %0d cycles",
+                   cfg.le_mid_flit_dir, n))
+      else
+        `uvm_info(get_type_name(), "LinkError: no flit in flight; entered at a boundary", UVM_LOW)
       return;
     end
     if (tx) n_le_mid_tx++;

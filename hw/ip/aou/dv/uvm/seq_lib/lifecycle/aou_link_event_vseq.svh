@@ -52,6 +52,7 @@ class aou_link_event_vseq extends aou_link_base_vseq;
     string evs[6] = '{"retrain", "clk_wake", "l1", "linkerror", "link_reset", "inband_drop"};
     int unsigned loops = arg_range("loops", 2, 4);
     string arg = arg_str("event", "rand");
+    string le_dir = cfg.lsm_cfg.le_mid_flit_dir;
     link_up();
     if (arg_int("link_down_mask", 0) != 0) begin
       aou_t1_feature_cfg f = aou_t1_feature_cfg::type_id::create("f");
@@ -66,7 +67,17 @@ class aou_link_event_vseq extends aou_link_base_vseq;
       case (ev)
         "retrain", "clk_wake": transparent(ev == "retrain" ? LSM_EV_RETRAIN : LSM_EV_CLK_WAKE);
         "l1": l1_cycle();
-        "linkerror": link_down(LSM_EV_LINKERROR, 1'b0);
+        "linkerror": begin
+          int unsigned tx_abandoned = env.fdi[cfg.lsm_cfg.active_phy].mon.n_tx_abandoned;
+          int unsigned rx_abandoned = env.fdi[cfg.lsm_cfg.active_phy].mon.n_rx_abandoned;
+          link_down(LSM_EV_LINKERROR, 1'b0);
+          if (le_dir == "tx" && env.fdi[cfg.lsm_cfg.active_phy].mon.n_tx_abandoned == tx_abandoned)
+            `uvm_error(get_type_name(),
+                       "directed TX LinkError had no monitor-observed partial-flit abandonment")
+          if (le_dir == "rx" && env.fdi[cfg.lsm_cfg.active_phy].mon.n_rx_abandoned == rx_abandoned)
+            `uvm_error(get_type_name(),
+                       "directed RX LinkError had no monitor-observed partial-flit abandonment")
+        end
         "link_reset": link_down(LSM_EV_LINK_RESET, 1'b0);
         "inband_drop": link_down(LSM_EV_LINK_RESET, 1'b1);
         "disabled": link_down(LSM_EV_DISABLED, 1'b0);
