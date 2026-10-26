@@ -158,6 +158,7 @@ package aou_t1_env_pkg;
 
   `uvm_analysis_imp_decl(_dbg_mport)
   `uvm_analysis_imp_decl(_dbg_remote)
+  `uvm_analysis_imp_decl(_dbg_remote_req)
 
   `include "aou_t1_traffic_cfg.svh"
   `include "aou_t1_feature_cfg.svh"
@@ -175,7 +176,6 @@ package aou_t1_env_pkg;
   `include "aou_t1_field_seq.svh"
   `include "aou_t1_reads_seq.svh"
   `include "aou_t1_sw_isr.svh"
-  `include "aou_t1_orphan_chk.svh"
   `include "aou_t1_axi4pc_ctl.svh"
   `include "aou_t1_mo_fc_bins.svh"
   `include "aou_t1_mo_chk.svh"

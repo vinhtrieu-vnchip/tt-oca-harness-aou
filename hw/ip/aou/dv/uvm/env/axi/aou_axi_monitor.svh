@@ -40,6 +40,9 @@ class aou_axi_monitor extends uvm_monitor;
   protected aou_axi_mon_item r_q[$];    // waiting for R
   // Responses still owed for transactions a reset aborted (reset_flush):
   // within stale_window the next response on such an ID is the stale one.
+  // The manager driver on the same port keeps the same window (its new
+  // requests on such an ID wait for it to pass). 0: nothing outlives the
+  // reset on this port (the responder is the bench's subordinate driver).
   time                   stale_window = 10us;
   protected int unsigned stale_b[bit [9:0]];
   protected int unsigned stale_r[bit [9:0]];
@@ -173,10 +176,13 @@ class aou_axi_monitor extends uvm_monitor;
         if (!in_bus_reset) begin
           observation_epoch++;
           clear_observations();
+          // Flush once per sampled reset episode, preserving the upstream
+          // driver/monitor stale-window alignment instead of extending it on
+          // every reset cycle. DG05 observations start a new epoch here.
+          reset_flush(1'b1);
         end
         in_bus_reset = 1'b1;
         prior_checks_enabled = 1'b0;
-        clear();
       end else begin
         in_bus_reset = 1'b0;
         if (cfg.checks_en) begin
@@ -289,12 +295,13 @@ class aou_axi_monitor extends uvm_monitor;
           n_stall_aborts[c], n_stability_activations[c], cfg.checks_en), UVM_LOW)
   endfunction
 
-  // Reset contract. bus_reset (the port's own reset): forget in-flight
-  // transactions without publishing them, drop responses the DUT still sends
-  // for them (stale_window), and don't judge the handshakes the reset cut
-  // short. Otherwise (AOU_SW_RESET; the bus is not reset) they stay tracked
-  // and are published if they complete, but may never complete, so the end
-  // of test does not count them as missing.
+  // Reset contract. bus_reset (the port's own reset, I_RESETN or AOU_SW_RESET):
+  // forget in-flight transactions without publishing them, drop a response
+  // that would still arrive for one (stale_window, as the manager driver
+  // does), and don't judge the handshakes the reset cut short. Otherwise
+  // (abort_traffic(); no reset) they stay tracked and are published if they
+  // complete, but may never complete, so the end of test does not count them
+  // as missing.
   function void reset_flush(bit bus_reset = 1'b1);
     if (!bus_reset) begin
       foreach (aw_q[k]) aw_q[k].txn.aborted = 1'b1;
@@ -303,10 +310,12 @@ class aou_axi_monitor extends uvm_monitor;
       n_aborted += aw_q.size() + b_q.size() + r_q.size();
       return;
     end
-    foreach (b_q[k]) stale_b[b_q[k].txn.id] = stale_b.exists(b_q[k].txn.id) ?
-                                              stale_b[b_q[k].txn.id] + 1 : 1;
-    foreach (r_q[k]) stale_r[r_q[k].txn.id] = stale_r.exists(r_q[k].txn.id) ?
-                                              stale_r[r_q[k].txn.id] + 1 : 1;
+    if (stale_window > 0) begin
+      foreach (b_q[k]) stale_b[b_q[k].txn.id] = stale_b.exists(b_q[k].txn.id) ?
+                                                stale_b[b_q[k].txn.id] + 1 : 1;
+      foreach (r_q[k]) stale_r[r_q[k].txn.id] = stale_r.exists(r_q[k].txn.id) ?
+                                                stale_r[r_q[k].txn.id] + 1 : 1;
+    end
     n_aborted += outstanding();
     stale_until = $time + stale_window;
     clear();
@@ -483,6 +492,7 @@ class aou_axi_monitor extends uvm_monitor;
     it.txn.qos   = vif.mon_cb.arqos;
     it.txn.data  = new[it.txn.beats()];
     it.txn.rresp = new[it.txn.beats()];
+    it.txn.t_r   = new[it.txn.beats()];
     check_addr(it.txn, "AR");
     r_q.push_back(it);
   endfunction
@@ -617,6 +627,7 @@ class aou_axi_monitor extends uvm_monitor;
         if (it.beats < it.txn.beats()) begin
           it.txn.data[it.beats]  = vif.mon_cb.rdata & data_mask;
           it.txn.rresp[it.beats] = vif.mon_cb.rresp;
+          it.txn.t_r[it.beats]   = $time;
         end
         it.beats++;
         last = (it.beats >= it.txn.beats());

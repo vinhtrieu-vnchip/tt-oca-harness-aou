@@ -43,7 +43,7 @@ The SFR block decodes [.monospaced]#++PADDR[15:0]++# only: the offsets in xref:t
 | | |TX_LP_MODE_THRESHOLD |[19:12] |RW |0x4
 | | |TX_LP_MODE |[11] |RW |0x0
 | | |Rsvd |[10:5] |RO |0x0
-| | |AOU_SW_RESET |[4] |RW |0x0
+| | |AOU_SW_RESET |[4] |WO |0x0
 | | |CREDIT_MANAGE |[3] |RW |0x0
 | | |AXI_SPLIT_TR_EN |[2] |RW |0x0
 | | |Rsvd |[1:0] |RO |0x0
@@ -130,7 +130,8 @@ The SFR block decodes [.monospaced]#++PADDR[15:0]++# only: the offsets in xref:t
 |AXI_ERROR_INFO0_RP0 |0x002C | | | |0x0
 | | |DEBUG_UPPER_ADDR |[31:0] |RW |0x0
 |AXI_ERROR_INFO1_RP0 |0x0030 | | | |0x0
-| | |DEBUG_LOWER_ADDR |[31:0] |RW |0x0
+| | |DEBUG_LOWER_ADDR |[31:7] |RW |0x0
+| | |Rsvd |[6:0] |RO |0x0
 |AXI_SLV_ID_MISMATCH_ERR_RP0 |0x0034 | | | |
 | | |Rsvd |[31:22] |RO |0x0
 | | |AXI_SLV_BID_MISMATCH_INFO |[21:12] |RO |0x0
@@ -160,7 +161,8 @@ The SFR block decodes [.monospaced]#++PADDR[15:0]++# only: the offsets in xref:t
 |AXI_ERROR_INFO0_RP1 |0x0044 | | | |0x0
 | | |DEBUG_UPPER_ADDR |[31:0] |RW |0x0
 |AXI_ERROR_INFO1_RP1 |0x0048 | | | |0x0
-| | |DEBUG_LOWER_ADDR |[31:0] |RW |0x0
+| | |DEBUG_LOWER_ADDR |[31:7] |RW |0x0
+| | |Rsvd |[6:0] |RO |0x0
 |AXI_SLV_ID_MISMATCH_ERR_RP1 |0x004C | | | |
 | | |Rsvd |[31:22] |RO |0x0
 | | |AXI_SLV_BID_MISMATCH_INFO |[21:12] |RO |0x0
@@ -190,7 +192,8 @@ The SFR block decodes [.monospaced]#++PADDR[15:0]++# only: the offsets in xref:t
 |AXI_ERROR_INFO0_RP2 |0x005C | | | |0x0
 | | |DEBUG_UPPER_ADDR |[31:0] |RW |0x0
 |AXI_ERROR_INFO1_RP2 |0x0060 | | | |0x0
-| | |DEBUG_LOWER_ADDR |[31:0] |RW |0x0
+| | |DEBUG_LOWER_ADDR |[31:7] |RW |0x0
+| | |Rsvd |[6:0] |RO |0x0
 |AXI_SLV_ID_MISMATCH_ERR_RP2 |0x0064 | | | |
 | | |Rsvd |[31:22] |RO |0x0
 | | |AXI_SLV_BID_MISMATCH_INFO |[21:12] |RO |0x0
@@ -220,7 +223,8 @@ The SFR block decodes [.monospaced]#++PADDR[15:0]++# only: the offsets in xref:t
 |AXI_ERROR_INFO0_RP3 |0x0074 | | | |0x0
 | | |DEBUG_UPPER_ADDR |[31:0] |RW |0x0
 |AXI_ERROR_INFO1_RP3 |0x0078 | | | |0x0
-| | |DEBUG_LOWER_ADDR |[31:0] |RW |0x0
+| | |DEBUG_LOWER_ADDR |[31:7] |RW |0x0
+| | |Rsvd |[6:0] |RO |0x0
 |AXI_SLV_ID_MISMATCH_ERR_RP3 |0x007C | | | |
 | | |Rsvd |[31:22] |RO |0x0
 | | |AXI_SLV_BID_MISMATCH_INFO |[21:12] |RO |0x0
@@ -257,6 +261,7 @@ For details on the ACTIVATE and DEACTIVATE SFRs, please refer to xref:aou-73-act
 * The splitter inside *AOU_CORE* issues AXI transfers with burst lengths less than or equal to the configured values (*MAX_AWBURSTLEN*, *MAX_ARBURSTLEN*).
 * If *AOU_CORE* receives a larger burst length from the remote die, the splitter divides it into smaller bursts based on MAX_AxBURSTLEN.
 * Since the splitter only supports maximum burst lengths of the form 2^n - 1, the field must be configured with one of the following: 0, 1, 3, 7, 15, 31, 63, 127 or 255. The SFR stores 15 if any other value is written; read the field back to confirm the accepted value.
+* A transaction addressed to the R/B response error debug address (xref:aou-724-rb-response-error-debug-fifo[Section 7.2.4]) is never split, whatever MAX_AxBURSTLEN holds: it reaches the debug FIFO whole.
 
 *ACTIVATE_STATE_ENABLED/DISABLED*
 
@@ -368,23 +373,32 @@ When the manager interface receives an AXI B or R response with a non-OKAY statu
 [cols="<,<,<",options="header",]
 |=========================================================
 |Field |Width |Description
-|AXI ID |AXI_ID_WD |ID of the failing transaction
-|AXI ADDR |AXI_ADDR_WD |Address of the failing transaction
+|AXI ID |AXI_ID_WD |ID of the failing transaction, as issued by the remote die
+|AXI ADDR |AXI_ADDR_WD |Address of the failing response (see below)
 |RESP |2 bits |BRESP or RRESP value
 |=========================================================
 
-Both BRESP and RRESP errors can be pushed simultaneously (two entries in one cycle). If the FIFO is full, new errors are silently dropped.
+An entry is read as [.monospaced]#++{ID, ADDR, RESP}++# with RESP in bits [1:0], ADDR in bits [AXI_ADDR_WD+1:2] and ID above it, in the least significant bits of the data beat.
+
+*What is captured.* One entry is pushed per non-OKAY response as the RP's splitter sees it, that is, after the RP's data-width conversion and before the xref:aou-38-axi-aggregator[aggregator]:
+
+* Every R beat with RRESP = SLVERR or DECERR pushes one entry. The beats are those of the read at the remote die's ARSIZE, or at the RP's width when the remote die is wider: ADDR is the address of that beat (the burst address aligned down to that size, plus the beat offset) and RESP is that beat's RRESP. A multi-beat read with several failing beats therefore pushes several entries; a single remote read beat wider than the RP pushes one entry per RP-width beat it was converted into; and when the xref:aou-383-read-aggregation[read aggregator] has merged a narrow multi-beat read into RP-width manager-port beats, a failing manager-port beat pushes one entry per narrow beat it was built from, each at that narrow beat's address with the manager-port beat's RRESP.
+* Every B with BRESP = SLVERR or DECERR pushes one entry. ADDR is the AWADDR of the write as the remote die issued it, except that a write wider than the RP has its address aligned down to its AWSIZE by the data-width converter, and that aligned address is captured. When the splitter divided the write into sub-bursts, each failing sub-burst pushes an entry and all of them carry that same address, not the sub-burst's.
+
+A B and an R error that arrive in the same cycle are both pushed, the B entry first. The FIFO keeps the first four entries; while it is full, further errors are lost, with no overflow indication. The FIFO is empty after reset.
 
 *Enabling access.* Before the remote die can read error information, SW must:
 
 1.  Set [.monospaced]#++AOU_CON0.RPn_ERROR_INFO_ACCESS_EN++# [27:24] to 1 for the target RP.
-2.  Configure the dedicated address window by writing the upper 32 bits to [.monospaced]#++AXI_ERROR_INFO0_RPn.DEBUG_UPPER_ADDR++# and the lower 32 bits to [.monospaced]#++AXI_ERROR_INFO1_RPn.DEBUG_LOWER_ADDR++#.
+2.  Configure the dedicated address by writing the upper 32 bits to [.monospaced]#++AXI_ERROR_INFO0_RPn.DEBUG_UPPER_ADDR++# and the lower 32 bits to [.monospaced]#++AXI_ERROR_INFO1_RPn.DEBUG_LOWER_ADDR++#. Bits [6:0] of [.monospaced]#++DEBUG_LOWER_ADDR++# are reserved and read as zero, so the debug address is always 128-byte aligned, which suits every access at every supported width: the address decode compares the start address after the RP's data-width conversion, which aligns an access wider than the RP down to its AxSIZE, so a debug address not aligned to the access's AxSIZE would be missed and the access would reach the local memory; and the window returns the entry in the low bits of the RP-wide beat, from which the data-width converter selects the lane an access narrower than the RP addresses, so a debug address not aligned to the RP's width would read as zeros to such an access. The remote die must access the aligned address itself (the window is a single address, below).
 
-The [.monospaced]#++AOU_AXIMUX_1XN_SS++# address decoder routes any AXI transaction whose address matches [.monospaced]#++{DEBUG_UPPER_ADDR, DEBUG_LOWER_ADDR}++# to the [.monospaced]#++AOU_ERROR_INFO++# module instead of the normal datapath.
+The debug address is a single address, not a window. The [.monospaced]#++AOU_AXIMUX_1XN_SS++# address decoder routes any AXI transaction whose start address matches [.monospaced]#++{DEBUG_UPPER_ADDR, DEBUG_LOWER_ADDR}++# to the [.monospaced]#++AOU_ERROR_INFO++# module instead of the normal datapath. The whole transaction goes there: the splitter never divides it (xref:aou-71-sfr-setting[MAX BURSTLEN]), the xref:aou-382-write-aggregation[write aggregator] never merges it, and when the RP's data-width conversion turns the remote die's beat into several manager-side beats, [.monospaced]#++AOU_ERROR_INFO++# answers all of them. No part of a debug-address access reaches the local memory.
 
-*Read protocol.* The remote die issues an AXI read (AR) to the configured debug address. The module returns the FIFO head entry on RDATA (containing the concatenated ID, address, and response fields) with RLAST = 1.
+*Access rule.* The remote die accesses the debug address with single-beat transactions (AxLEN = 0) of any size. Any access to the debug address, whatever its AxLEN and AxSIZE, operates on the FIFO head entry only: a read returns the head and a write pops it once. [.monospaced]#++AOU_ERROR_INFO++# also answers a longer burst, returning on every beat of a read the entry that was the head when the read was accepted (a pop or a push while the read is in progress does not change its data) and popping once per write transaction, so a burst the RP builds from a single remote beat completes correctly.
 
-*Pop protocol.* To advance to the next entry, the remote die issues a dummy AXI write (AW + W) to the same debug address. The simultaneous AW and W handshake advances the FIFO read pointer, discarding the head entry. A B response (OKAY) is returned.
+*Read protocol.* The remote die issues an AXI read (AR) to the configured debug address. The module returns the FIFO head entry on RDATA (containing the concatenated ID, address, and response fields) with RLAST on the last beat and RRESP = OKAY. A read of an empty FIFO completes the same way; its data is not meaningful, so SW tracks the number of entries it has popped against the errors it expects, or reads the FIFO only after an error has been reported.
+
+*Pop protocol.* To advance to the next entry, the remote die issues a dummy AXI write (AW + W) to the same debug address; the write data and strobes are ignored. The pop takes effect once the AW and the last W beat have been accepted, and the B response (OKAY) follows. A pop of an empty FIFO does nothing and completes with OKAY.
 
 The typical access sequence is: read the head entry, then pop it, and repeat until no more entries remain.
 
@@ -575,6 +589,8 @@ Same as PM entry, before doing UCIE state transition, AOU_CORE need to Disabled 
 If AOU_CORE faces uncorrectable error (ex. AOU SPEC violation), AOU_CORE sends LinkReset to CPU and D2D adapter. LinkReset indicates that an error has occurred which requires the Link to go down.
 
 While handling LinkReset, SW needs to do AOU_CORE SW reset by setting AOU_CON0.AOU_SW_RESET.
+*What the software reset does.* Writing 1 to [.monospaced]#++AOU_SW_RESET++# resets AOU_CORE the way [.monospaced]#++I_RESETN++# does: the protocol engine, the activation state (the FSM returns to [.monospaced]#++DISABLED++#), the AXI port logic of every RP, the RX FIFOs of every RP (nothing received before the reset is kept, and the activation that follows advertises the full FIFO depth as credit) and every configuration register, [.monospaced]#++AOU_SW_RESET++# itself included. The bit is therefore write-only and self-clearing: the reset lasts one [.monospaced]#++I_CLK++# cycle and the bit reads 0. SW reprograms the configuration registers afterwards (xref:{aou-integration-xref}#aou-ig-reset-domains[Integration guide Section 3.1.1]).
+*AXI transactions across the reset.* [.monospaced]#++AOU_SW_RESET++# resets the AXI port logic of every RP with the rest of AOU_CORE, at once and without a quiesce, a drain or an error completion; [.monospaced]#++I_RESETN++# does the same. Every AXI transaction in flight or queued in AOU_CORE at that moment is lost, on the S ports and the M ports alike: a request accepted but not yet sent, a burst in progress on either port, a response owed to the local manager (a read or write already sent to the remote die included), a response the local subordinate has presented to an M port, and a write already acknowledged with an early write response (xref:aou-725-write-early-response-error[Section 7.2.5]) whose data has not reached the remote die. Across the reset the ports do not keep the AXI protocol: VALID can drop without a handshake, a burst can end before its last beat, a response presented to an M port is never accepted and a response owed on an S port never comes. The AXI managers and subordinates attached to the AoU ports must therefore be reset together with AOU_CORE, or have a recovery mechanism of their own that abandons the transactions outstanding towards AOU_CORE, withdraws what it presents and ignores a late response; the system restarts the lost traffic once AOU_CORE is activated again (xref:{aou-integration-xref}#aou-ig-reset-domains[Integration guide Section 3.1.1]). The PM entry and LinkDisable sequences above drain the AXI traffic before the link goes down, so a reset applied after them finds the ports idle; the LinkReset sequence cannot drain, since with the link down nothing AOU_CORE holds could complete, and loses what is pending.
 If the link is in L1 when AOU_CORE raises the request (an Ack time-out on an [.monospaced]#++ACTIVATE_START++# written in L1), the request is held until the link is Active again (xref:aou-723-linkreset-error-reporting[Section 7.2.3]): SW exits L1 on the UCIe controller first, waits for the D2D adapter to report LinkError, and only then applies [.monospaced]#++AOU_SW_RESET++#.
 SW learns that the link went down (LinkReset, Disabled, or a LinkError the D2D adapter entered on its own) from [.monospaced]#++INT_FDI_LINK_DOWN++# (status [.monospaced]#++AOU_INIT.INT_FDI_LINK_DOWN++#, raised when [.monospaced]#++I_INT_FSM_IN_ACTIVE++# falls with the activation FSM in ACTIVATE, ENABLED or DEACTIVATE, or in DISABLED with an ActivateReq outstanding), or from the UCIe controller. The activation FSM is already [.monospaced]#++DISABLED++# when the handler runs; the sequence itself is unchanged: read [.monospaced]#++AOU_INIT++#, [.monospaced]#++AOU_SW_RESET++#, restart the link on the UCIe controller, reprogram the configuration registers, [.monospaced]#++ACTIVATE_START++#. The status bit is cleared with the other registers by [.monospaced]#++AOU_SW_RESET++# (write 1 clears it when the core is not reset; as for the other W1C bits of [.monospaced]#++AOU_INIT++#, the write also lands on the register's RW fields, so SW writes back the [.monospaced]#++ACTIVATE_START++#, [.monospaced]#++DEACTIVATE_START++# and [.monospaced]#++DEACTIVATE_TIME_OUT_VALUE++# values it wants to keep) and is not set again by the restart. A link lost with local AXI transactions pending also raises [.monospaced]#++INT_ACTIVATE_START++# in the same cycle, since the forced [.monospaced]#++DISABLED++# meets pending traffic; the handler above answers both. The sequences of xref:aou-737-fdi-link-lifecycle-sequences[Section 7.3.7] show each case.
 The same applies to any FDI LinkError, whether AOU_CORE requested it or the D2D adapter entered it on its own: a LinkError can interrupt a flit in either direction, and AOU_CORE's FDI data paths keep that flit's position until [.monospaced]#++AOU_SW_RESET++#. On [.monospaced]#++AOU_TOP++# the FDI bringup controller therefore holds the link down after a LinkError ([.monospaced]#++O_FDI_FSM_STATE++# reads LinkError, [.monospaced]#++O_FDI_LINK_UP++# is 0) until SW has written [.monospaced]#++AOU_SW_RESET++#; SW then reprograms the configuration registers, restarts the link on the UCIe controller, and re-activates AOU once [.monospaced]#++O_FDI_LINK_UP++# is back (xref:{aou-integration-xref}#aou-ig-supported-state-transitions[Integration guide Section 6.6.3]).

@@ -258,7 +258,7 @@ They match the d04b2da analysis to within a few items, so that analysis carries 
 | AOU_CORE_SFR | 66/177/80 | 27/99/35 | 49/141/62 | 47/144/59 | 71/188/86 | 59/161/73 | 59/161/73 | 27/99/35 | b: reg bench XFAILs on 003/004/007 → skip-known-bugs variant (WP3); b: 029 error-info regs → check-then-reset (WP3); e: constant RO bits |
 | AOU_AGGREGATOR_INFO | 0/4/0 | 34/40/21 | 34/40/21 | 102/130/63 | 32/45/19 | 70/85/44 | 34/40/21 | 24/4/24 | c: as AGGREGATOR |
 | AOU_TX_CRD_CTRL | 35/37/26 | 35/2/26 | 45/7/30 | 80/2/44 | 36/37/26 | 50/22/32 | 50/22/32 | 30/2/24 | a/e: 20 lines saturate the received credit at `RP*_MAX_CREDIT`=2048 (L476-548), so an L3 over-grant past 2048 is needed; check reachability first. c: `I_RP_DEST_RP` arms (L572-610) → full DEST_RP permutation on the multi-RP configs |
-| AOU_ERROR_INFO | 4/15/3 | 4/14/3 | 4/14/3 | 28/55/25 | 28/55/25 | 4/14/3 | 4/14/3 | 4/14/3 | b: on 4xmix and 1x256 the debug FIFO path is empty because `err_resp` XFAILs on BUGS/035 → run `err_resp` with the remote width = the RP width. a: B+R error in one cycle with one slot left |
+| AOU_ERROR_INFO | 4/15/3 | 4/14/3 | 4/14/3 | 28/55/25 | 28/55/25 | 4/14/3 | 4/14/3 | 4/14/3 | b: on 4xmix and 1x256 the debug FIFO path was empty while the window could not answer a width-converted read (fixed) → rerun `err_resp` there. a: B+R error in one cycle with one slot left |
 | AOU_RX_CORE | 14/11/14 | 14/19/14 | 14/19/14 | 23/57/21 | 25/6/17 | 23/25/21 | 14/7/14 | 13/46/35 | d per config: `PHY_TYPE` arms in `always_comb` (L750-809). a: write-data mask continuation across chunks (L344-387, crossflit layouts); 7+ WriteResp per chunk (cond L1163, `+pk=wresp48` on more configs) |
 | AOU_AXI4MUX_3X1_TOP / _256 | 0/0/0 | 0/4/0 | 0/4/0 | 0/94+64/24 | 6/45+64/25 | 0/49/0 | 0/4/0 | 0/9/0 | b: CH2 (1024-bit remote slot) on 256-bit RPs is only reached by tenstorrent/tt-oca-harness-aou#90 runs → 025-avoiding variant (WP3) |
 | AOU_ACTIVATION_CTRL | 16/51/17/1 | 16/53/17/1 | 16/51/17/1 | 11/42/12/1 | 11/49/12/1 | 13/47/14/1 | 15/48/16/1 | 9/38/10/1 | b: ACTIVATE→DISABLED and invalid-op lines (019/013/023) → check-then-hard-reset variant. a: `DEACTIVATE_TIME_OUT_VALUE` 2,4-7; remote DeactivateReq with PropertyReq=1; ACTMSG_READY back-pressure |
@@ -324,8 +324,7 @@ Other holes in the same module:
 - **cond L228:** `pl_active && !rx_active_req` would need a non-compliant adapter. Class d/e.
 - **Lines 328, 350, 470:** one-hot `default` arms. Class d.
 
-**Proposal:** a new `aou_fdi_t1_bringup_corner_test`, quiet (no traffic, so BUGS/021/024 don't
-apply), that walks a table of (DUT state, injected event, offset). It needs three LSM
+**Proposal:** a new `aou_fdi_t1_bringup_corner_test`, quiet (no traffic), that walks a table of (DUT state, injected event, offset). It needs three LSM
 extensions: event-at-state injection, `wake_ack` delay, and LP-initiated L1 exit. Expected yield:
 bringup FSM 17→31/35 and **global FSM 34→48/58**.
 
@@ -489,7 +488,7 @@ can't mean what it says. They are listed for owner review because the denominato
 | **l1.cg_fdi_cancel** | `cp_half h1`, `cp_repeat second/more`, `x_half_kind h1,*` (5) | **a:** a flit cancel on the second 128 B half, and consecutive cancels (L1 driver knobs; `aou_t1_slice_test` only cancels the first half). r2.0 R20-04 adds a `nop` kind (§5). |
 | **l1.cg_fdi_stall** | `cp_hold h1/h2_4`; `x_where_lat boundary×{l3,l4_6,l7_up}`, `mid_flit,l2` (6) | **a:** short stall holds and stallreq at a flit boundary with a slow ack. 2-PHY builds hit 2 more, so the latency depends on the FDI width. Add R20-03 `cp_seq` and R20-02 `cp_state` (§5). |
 | **l2.cg_bringup_fsm** | `retrain_linkerr`, `l1_wake` (a); `active_linkdown`, `deact_linkdown`, `linkdown_unwake` (b) | `retrain_linkerr` and `l1_wake`: WP5 (LP-initiated L1 exit). The linkdown bins are the **bench model's** expected link-down path, so they are **b**: the linkdown and linkerror spec tests XFAIL on BUGS/001 and 038. With `+FDI_ENC=RTL` they still fail on 038 (the DUT has no LINKDOWN state). They close only with the 038 fix. |
-| **l2.cg_link_state cp_tr** | `retrain_linkerror`, `active_linkreset`, `linkreset_reset`, `active_disabled`, `disabled_reset`, `reset_linkerror`; `cp_sts linkreset/disabled` | **a/b.** Adapter-driven transitions. `link_event +event=link_reset/inband_drop` XFAIL on BUGS/021/024 because of traffic and SW reset. A **quiet** link-event variant closes them now. `reset_linkerror` and `retrain_linkerror` come with WP5. |
+| **l2.cg_link_state cp_tr** | `retrain_linkerror`, `active_linkreset`, `linkreset_reset`, `active_disabled`, `disabled_reset`, `reset_linkerror`; `cp_sts linkreset/disabled` | **a/b.** Adapter-driven transitions. `link_event +event=link_reset/inband_drop` used to XFAIL on the since-retired SW-reset sightings because of traffic and SW reset. A **quiet** link-event variant closes them now. `reset_linkerror` and `retrain_linkerror` come with WP5. |
 | **l2.cg_link_state cp_fdi_enc spec** | 1 | **b**, BUGS/001 (informational bin) |
 | **l3.cg_act_op** (after the fix) | `tx,illegal` × op0-3 and reserved (5) | **a:** sample the inject path. `aou_invalid_actmsg_test` covers every op×state, but those runs XFAIL on 019/013/023, so run the check-then-hard-reset variant (WP3). |
 | **l3.cg_credit** (after the fix) | `zero_stall,tx` for wreq/rreq/wresp; the new DUT-side bins | **a:** the model must exhaust the DUT's credit (`aou_zero_credit_test +credit=...` exists for model→DUT; the model-stalled direction needs bursts of remote-initiated requests beyond the DUT's advertised RX depth). |

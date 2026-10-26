@@ -84,7 +84,7 @@ Don't override. Generated from: aou_core
 |  1  |       reserved_1       |   r  | 0x0 |  — |
 |  2  |     axi_split_tr_en    |  rw  | 0x0 |  — |
 |  3  |      credit_manage     |  rw  | 0x1 |  — |
-|  4  |      aou_sw_reset      |  rw  | 0x0 |  — |
+|  4  |      aou_sw_reset      |   w  | 0x0 |  — |
 | 10:5|      reserved_10_5     |   r  | 0x0 |  — |
 |  11 |       tx_lp_mode       |  rw  | 0x0 |  — |
 |19:12|  tx_lp_mode_threshold  |  rw  | 0x4 |  — |
@@ -112,7 +112,7 @@ Don't override. Generated from: aou_core
 
 #### aou_sw_reset field
 
-<p>Software reset for AOU core logic.</p>
+<p>Software reset of AOU_CORE. Writing 1 resets AOU_CORE the way I_RESETN does: every SFR (this bit included) returns to its reset value, the activation FSM returns to DISABLED, the RX FIFOs of every RP are emptied and the AXI port logic is cleared; a transaction in flight or queued is lost and gets no response. Write-only; reads return 0 (the reset clears the bit itself, so the reset lasts one I_CLK cycle). Use it only as part of the LinkReset handling sequence (MAS 7.3.6), with the FDI link down: in LinkError (the AOU_TOP bringup controller holds the link there until this reset is written), LinkReset, Disabled or Reset, never Active.</p>
 
 #### tx_lp_mode field
 
@@ -554,7 +554,7 @@ Don't override. Generated from: aou_core
 
 #### debug_upper_addr field
 
-<p>Upper 32 bits of the dedicated AXI address used to access R/B response error debug information for RP0. Set this address along with debug_lower_addr and error_info_access_en to enable error information readout by the remote die via AXI read. Up to 4 error entries can be stored and popped by writing 1 to this address.</p>
+<p>Upper 32 bits of the dedicated AXI address used to access R/B response error debug information for RP0. Set this address along with debug_lower_addr and error_info_access_en to enable error information readout by the remote die via AXI read. Up to 4 entries are held, one per failing manager-port B or R beat; the remote die reads the head entry with a single-beat read of this address and pops it with a single-beat write of any data to it.</p>
 
 ### axi_error_info1_rp0 register
 
@@ -566,11 +566,12 @@ Don't override. Generated from: aou_core
 
 |Bits|   Identifier   |Access|Reset|Name|
 |----|----------------|------|-----|----|
-|31:0|debug_lower_addr|  rw  | 0x0 |  — |
+| 6:0|  reserved_6_0  |   r  | 0x0 |  — |
+|31:7|debug_lower_addr|  rw  | 0x0 |  — |
 
 #### debug_lower_addr field
 
-<p>Lower 32 bits of the dedicated AXI address used to access R/B response error debug information for RP0. Together with debug_upper_addr, defines the target address for error information access.</p>
+<p>Bits [31:7] of the dedicated AXI address used to access R/B response error debug information for RP0. Together with debug_upper_addr, defines the target address for error information access. Bits [6:0] of the address are reserved and read as zero, so the address is 128-byte aligned: an access to a debug address not aligned to its AxSIZE would miss the window, and one narrower than the RP not aligned to the RP's width would read zeros.</p>
 
 ### axi_slv_id_mismatch_err_rp0 register
 
@@ -724,7 +725,7 @@ Don't override. Generated from: aou_core
 
 #### debug_upper_addr field
 
-<p>Upper 32 bits of the dedicated AXI address used to access R/B response error debug information for RP1. Set this address along with debug_lower_addr and error_info_access_en to enable error information readout by the remote die via AXI read.</p>
+<p>Upper 32 bits of the dedicated AXI address used to access R/B response error debug information for RP1. Set this address along with debug_lower_addr and error_info_access_en to enable error information readout by the remote die via AXI read. Up to 4 entries are held, one per failing manager-port B or R beat; the remote die reads the head entry with a single-beat read of this address and pops it with a single-beat write of any data to it.</p>
 
 ### axi_error_info1_rp1 register
 
@@ -736,11 +737,12 @@ Don't override. Generated from: aou_core
 
 |Bits|   Identifier   |Access|Reset|Name|
 |----|----------------|------|-----|----|
-|31:0|debug_lower_addr|  rw  | 0x0 |  — |
+| 6:0|  reserved_6_0  |   r  | 0x0 |  — |
+|31:7|debug_lower_addr|  rw  | 0x0 |  — |
 
 #### debug_lower_addr field
 
-<p>Lower 32 bits of the dedicated AXI address used to access R/B response error debug information for RP1. Together with debug_upper_addr, defines the target address for error information access.</p>
+<p>Bits [31:7] of the dedicated AXI address used to access R/B response error debug information for RP1. Together with debug_upper_addr, defines the target address for error information access. Bits [6:0] of the address are reserved and read as zero, so the address is 128-byte aligned: an access to a debug address not aligned to its AxSIZE would miss the window, and one narrower than the RP not aligned to the RP's width would read zeros.</p>
 
 ### axi_slv_id_mismatch_err_rp1 register
 
@@ -894,7 +896,7 @@ Don't override. Generated from: aou_core
 
 #### debug_upper_addr field
 
-<p>Upper 32 bits of the dedicated AXI address used to access R/B response error debug information for RP2. Set this address along with debug_lower_addr and error_info_access_en to enable error information readout by the remote die via AXI read.</p>
+<p>Upper 32 bits of the dedicated AXI address used to access R/B response error debug information for RP2. Set this address along with debug_lower_addr and error_info_access_en to enable error information readout by the remote die via AXI read. Up to 4 entries are held, one per failing manager-port B or R beat; the remote die reads the head entry with a single-beat read of this address and pops it with a single-beat write of any data to it.</p>
 
 ### axi_error_info1_rp2 register
 
@@ -906,11 +908,12 @@ Don't override. Generated from: aou_core
 
 |Bits|   Identifier   |Access|Reset|Name|
 |----|----------------|------|-----|----|
-|31:0|debug_lower_addr|  rw  | 0x0 |  — |
+| 6:0|  reserved_6_0  |   r  | 0x0 |  — |
+|31:7|debug_lower_addr|  rw  | 0x0 |  — |
 
 #### debug_lower_addr field
 
-<p>Lower 32 bits of the dedicated AXI address used to access R/B response error debug information for RP2. Together with debug_upper_addr, defines the target address for error information access.</p>
+<p>Bits [31:7] of the dedicated AXI address used to access R/B response error debug information for RP2. Together with debug_upper_addr, defines the target address for error information access. Bits [6:0] of the address are reserved and read as zero, so the address is 128-byte aligned: an access to a debug address not aligned to its AxSIZE would miss the window, and one narrower than the RP not aligned to the RP's width would read zeros.</p>
 
 ### axi_slv_id_mismatch_err_rp2 register
 
@@ -1064,7 +1067,7 @@ Don't override. Generated from: aou_core
 
 #### debug_upper_addr field
 
-<p>Upper 32 bits of the dedicated AXI address used to access R/B response error debug information for RP3. Set this address along with debug_lower_addr and error_info_access_en to enable error information readout by the remote die via AXI read.</p>
+<p>Upper 32 bits of the dedicated AXI address used to access R/B response error debug information for RP3. Set this address along with debug_lower_addr and error_info_access_en to enable error information readout by the remote die via AXI read. Up to 4 entries are held, one per failing manager-port B or R beat; the remote die reads the head entry with a single-beat read of this address and pops it with a single-beat write of any data to it.</p>
 
 ### axi_error_info1_rp3 register
 
@@ -1076,11 +1079,12 @@ Don't override. Generated from: aou_core
 
 |Bits|   Identifier   |Access|Reset|Name|
 |----|----------------|------|-----|----|
-|31:0|debug_lower_addr|  rw  | 0x0 |  — |
+| 6:0|  reserved_6_0  |   r  | 0x0 |  — |
+|31:7|debug_lower_addr|  rw  | 0x0 |  — |
 
 #### debug_lower_addr field
 
-<p>Lower 32 bits of the dedicated AXI address used to access R/B response error debug information for RP3. Together with debug_upper_addr, defines the target address for error information access.</p>
+<p>Bits [31:7] of the dedicated AXI address used to access R/B response error debug information for RP3. Together with debug_upper_addr, defines the target address for error information access. Bits [6:0] of the address are reserved and read as zero, so the address is 128-byte aligned: an access to a debug address not aligned to its AxSIZE would miss the window, and one narrower than the RP not aligned to the RP's width would read zeros.</p>
 
 ### axi_slv_id_mismatch_err_rp3 register
 
