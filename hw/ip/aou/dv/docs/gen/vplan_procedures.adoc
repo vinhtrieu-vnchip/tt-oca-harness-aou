@@ -771,6 +771,8 @@ l1_act or retrain_act) +link_down_mask +loops +T1_TXN.
 |===
 | Scenario | Arguments | Seeds | Target | Plan items
 | `aou_link_event_test.event-linkerror.le_mid_flit_pct-100` | `+event=linkerror +le_mid_flit_pct=100` | 1-2 |  | 18.23
+| `aou_link_event_test.event-linkerror.le_mid_flit_pct-100.le_mid_flit_dir-tx` | `+event=linkerror +le_mid_flit_pct=100 +le_mid_flit_dir=tx` | 1-3 | `1x512-sp64` | 18.23
+| `aou_link_event_test.event-linkerror.le_mid_flit_pct-100.le_mid_flit_dir-rx` | `+event=linkerror +le_mid_flit_pct=100 +le_mid_flit_dir=rx` | 1-3 | `1x512-sp64` | 18.23
 | `aou_link_event_test.event-disabled` | `+event=disabled` | 1-2 |  | 18.18
 | `aou_link_event_test.event-sw_disable` | `+event=sw_disable` | 1-2 |  | 18.18
 | `aou_link_event_test.event-l1.active_phy-1.park_idle_phy-1.2xmix-tp64_128` | `+event=l1 +active_phy=1 +park_idle_phy=1` | 1 | `2xmix-tp64_128` | 18.25

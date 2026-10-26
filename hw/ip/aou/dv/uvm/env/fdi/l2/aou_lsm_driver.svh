@@ -391,19 +391,27 @@ class aou_lsm_driver extends uvm_driver #(aou_lsm_item);
   // flits, and the Protocol Layer must drop its partial ones.
   local task abort_mid_flit();
     int unsigned n;
-    bit tx;
-    bit rx;
+    bit tx, rx, selected;
     while (n < 5000) begin
+      tx = 1'b0;
+      rx = 1'b0;
       foreach (cfg.gate[i]) begin
         tx |= cfg.gate[i].tx_busy;
         rx |= cfg.gate[i].rx_busy;
       end
-      if (tx || rx) break;
+      case (cfg.le_mid_flit_dir)
+        "tx": selected = tx;
+        "rx": selected = rx;
+        default: selected = tx || rx;
+      endcase
+      if (selected) break;
       @(lsm_vif.drv_cb);
       n++;
     end
-    if (!(tx || rx)) begin
-      `uvm_info(get_type_name(), "LinkError: no flit in flight; entered at a boundary", UVM_LOW)
+    if (!selected) begin
+      `uvm_info(get_type_name(), $sformatf(
+                "LinkError: no %s flit in flight; entered at a boundary",
+                cfg.le_mid_flit_dir), UVM_LOW)
       return;
     end
     if (tx) n_le_mid_tx++;

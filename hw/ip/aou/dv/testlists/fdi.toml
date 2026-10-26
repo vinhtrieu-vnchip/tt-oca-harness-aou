@@ -147,6 +147,29 @@ tags = ["fdi"]
 run_modes = ["fdi"]
 args = ["+event=linkerror", "+le_mid_flit_pct=100"]
 
+# Deterministic directional LinkError coverage. These wait for a partial DUT TX
+# flit or an RX flit to the DUT, respectively; cg_fdi_abandon is credited only
+# when the passive monitor observes that partial flit being abandoned.
+[[tests]]
+name = "aou_link_event_test.event-linkerror.le_mid_flit_pct-100.le_mid_flit_dir-tx"
+module = { uvm = "aou_link_event_test" }
+target = "1x512-sp64"
+seed = 1
+reseed = 3
+tags = ["fdi"]
+run_modes = ["fdi"]
+args = ["+event=linkerror", "+le_mid_flit_pct=100", "+le_mid_flit_dir=tx"]
+
+[[tests]]
+name = "aou_link_event_test.event-linkerror.le_mid_flit_pct-100.le_mid_flit_dir-rx"
+module = { uvm = "aou_link_event_test" }
+target = "1x512-sp64"
+seed = 1
+reseed = 3
+tags = ["fdi"]
+run_modes = ["fdi"]
+args = ["+event=linkerror", "+le_mid_flit_pct=100", "+le_mid_flit_dir=rx"]
+
 # Disabled (18.18): Adapter-initiated entry and exit with AoU traffic (fdi_enc=SPEC; the
 # test selects it). O_FDI_LINK_UP drops (FDI-M06), the DUT requests nothing (FDI-M01), and
 # traffic resumes after recovery.
@@ -255,7 +278,7 @@ args = ["+event=retrain", "+active_phy=1", "+park_idle_phy=1"]
 
 [[groups]]
 name = "fdi"
-expected_count = 22
+expected_count = 24
 tests = [
   "aou_dp_random_test.dp_dir-both.fdi_trdy-holes.fdi_stall_pct-5.fdi_stall_mid_pct-60.fdi_stall_trdy_free-1",
   "aou_stress_test.st_pol-random.st_crd-slow.fdi_trdy-random.fdi_stall_pct-8.fdi_stall_mid_pct-50",
@@ -269,6 +292,8 @@ tests = [
   "aou_fdi_t1_link_stress_test.fdi_rx_early-40",
   "aou_fdi_t1_link_stress_test.le_mid_flit_pct-100.fdi_rx_early-40",
   "aou_link_event_test.event-linkerror.le_mid_flit_pct-100",
+  "aou_link_event_test.event-linkerror.le_mid_flit_pct-100.le_mid_flit_dir-tx",
+  "aou_link_event_test.event-linkerror.le_mid_flit_pct-100.le_mid_flit_dir-rx",
   "aou_link_event_test.event-disabled",
   "aou_link_event_test.event-sw_disable",
   "aou_t1_slice_test.active_phy-1.park_idle_phy-1.2xmix-tp64_128",

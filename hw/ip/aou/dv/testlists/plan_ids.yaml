@@ -45,6 +45,8 @@ plan_ids:
   aou_fdi_t1_link_stress_test.fdi_rx_early-40: '18.16,18.19'
   aou_fdi_t1_link_stress_test.le_mid_flit_pct-100.fdi_rx_early-40: '18.16,18.19,18.23'
   aou_link_event_test.event-linkerror.le_mid_flit_pct-100: '18.23'
+  aou_link_event_test.event-linkerror.le_mid_flit_pct-100.le_mid_flit_dir-tx: '18.23'
+  aou_link_event_test.event-linkerror.le_mid_flit_pct-100.le_mid_flit_dir-rx: '18.23'
   aou_link_event_test.event-disabled: '18.18'
   aou_link_event_test.event-sw_disable: '18.18'
   aou_t1_slice_test.active_phy-1.park_idle_phy-1.2xmix-tp64_128: '18.25'

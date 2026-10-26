@@ -36,6 +36,10 @@ class aou_lsm_cfg extends uvm_object;
   // boundary, while a flit is in flight in either direction (UCIe r1.1
   // 8.3.3.7 needs neither a stall nor a boundary). +le_mid_flit_pct.
   int unsigned  le_mid_flit_pct = 0;
+  // Optional direction constraint for directed LinkError coverage. "tx" means
+  // a partial flit emitted by the DUT; "rx" means a partial flit sent to it.
+  // "any" preserves the existing behavior.
+  string        le_mid_flit_dir = "any";
   // Cycles the Adapter forwards RX flits in Reset before Active. UCIe r1.1
   // 8.2.7: once pl_rx_active_req and lp_rx_active_sts are both 1 the
   // Receiver is Active "even though pl_state_sts might not have moved to
@@ -70,8 +74,8 @@ class aou_lsm_cfg extends uvm_object;
 
   function string convert2string();
     return $sformatf({"fdi_enc=%s n_phy=%0d active_phy=%0d lat=[%0d:%0d] auto_bringup=%0b ",
-                      "clk_hold=%0b sw_restart_delay=%0d"},
+                      "clk_hold=%0b sw_restart_delay=%0d le_mid_flit_dir=%s"},
                      fdi_enc.name(), n_phy, active_phy, lat_min, lat_max, auto_bringup,
-                     clk_req_hold_bringup, sw_restart_delay);
+                     clk_req_hold_bringup, sw_restart_delay, le_mid_flit_dir);
   endfunction
 endclass

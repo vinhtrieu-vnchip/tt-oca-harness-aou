@@ -20,7 +20,7 @@ class aou_lsm_agent extends uvm_agent;
   endfunction
 
   function void build_phase(uvm_phase phase);
-    string enc;
+    string enc, le_dir;
     super.build_phase(phase);
     if (cfg == null && !uvm_config_db #(aou_lsm_cfg)::get(this, "", "cfg", cfg))
       cfg = aou_lsm_cfg::type_id::create("cfg");
@@ -40,6 +40,12 @@ class aou_lsm_agent extends uvm_agent;
     if (!$value$plusargs("sw_restart_delay=%d", cfg.sw_restart_delay))
       cfg.sw_restart_delay = $urandom_range(1500, 50);
     void'($value$plusargs("le_mid_flit_pct=%d", cfg.le_mid_flit_pct));
+    if ($value$plusargs("le_mid_flit_dir=%s", le_dir)) begin
+      if (!(le_dir inside {"any", "tx", "rx"}))
+        `uvm_fatal(get_type_name(), $sformatf(
+                   "+le_mid_flit_dir=%s: expected any, tx or rx", le_dir))
+      cfg.le_mid_flit_dir = le_dir;
+    end
     void'($value$plusargs("fdi_rx_early=%d", cfg.rx_early));
     void'($value$plusargs("park_idle_phy=%b", cfg.park_idle_phy));
     if (cfg.n_phy < 1 || cfg.n_phy > 2)
