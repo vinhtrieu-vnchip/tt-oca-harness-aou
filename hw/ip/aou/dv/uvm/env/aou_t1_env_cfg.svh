@@ -73,7 +73,7 @@ class aou_t1_env_cfg extends uvm_object;
   // With CREDIT_MANAGE=0 the remote die (L3) deactivates as a MAS partner
   // would (aou_l3_cfg::cm0_deact); 0 restores the AoU-only remote die.
   bit            l3_cm0_deact = 1'b1;
-  // aou_t1_rx_fifo_chk (T1-C41, T1-L40, T1-L46) and the messages per RP and
+  // aou_t1_rx_fifo_chk (T1-C41, T1-L40, T1-L46, T1-L52) and the messages per RP and
   // class it allows past the RX FIFO (register slice, splitter, width converter).
   bit            rx_fifo_chk_en = 1'b1;
   int unsigned   rx_fifo_slack = 8;

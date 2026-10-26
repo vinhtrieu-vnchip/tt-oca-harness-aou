@@ -222,6 +222,7 @@ plan_ids:
   aou_zero_credit_test.credit-wresp.deact-1: '2.5'
   aou_deact_ctrl_test.mode-tov: '2.12'
   aou_deact_ctrl_test.mode-property: '2.10'
+  aou_deact_quiet_test.preelapsed: '2.12'
   aou_act_flit_test.mode-act_req.v0p8: '1.12'
   aou_act_flit_test.mode-deact_rsp.v0p8: '2.14'
   aou_invalid_actmsg_test.state-all.op-all: '1.5,1.8,1.9,19.6,11.15'

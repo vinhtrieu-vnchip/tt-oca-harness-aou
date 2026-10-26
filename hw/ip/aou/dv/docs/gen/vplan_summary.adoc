@@ -204,7 +204,7 @@
 | `aou_qos_order_test.arb_mode-2.qos_tiers-2.qos_timer-promote.4xmix4211-sp128` | `aou_qos_order_test` | `+arb_mode=2 +qos_tiers=2 +qos_timer=promote` | 1-2 | `4xmix4211-sp128` | 13.15 | 
 | `aou_stress_test.st_bp-all.small_size_pct-5` | `aou_stress_test` | `+st_bp=all +small_size_pct=5` | 1-2 |  | 4.1,5.1,14.10,14.11 | 
 |===
-===== `testlists/link.toml` (43 scenarios)
+===== `testlists/link.toml` (44 scenarios)
 [cols="3,2,2,1,1,2,2",options="header"]
 |===
 | Scenario | Test class | Arguments | Seeds | Target | Plan items | Expected failure
@@ -247,6 +247,7 @@
 | `aou_zero_credit_test.credit-wresp.deact-1.grant-2` | `aou_zero_credit_test` | `+credit=wresp +deact=1 +grant=2` | 1-2 |  | 2.5 | 
 | `aou_zero_credit_test.credit-wresp.deact-1` | `aou_zero_credit_test` | `+credit=wresp +deact=1` | 1-2 |  | 2.5 | 
 | `aou_deact_ctrl_test.mode-tov` | `aou_deact_ctrl_test` | `+mode=tov` | 1-3 |  | 2.12 | 
+| `aou_deact_quiet_test.preelapsed` | `aou_deact_quiet_test` | `+mode=quiet-preelapsed` | 1 |  | 2.12 | 
 | `aou_deact_ctrl_test.mode-property` | `aou_deact_ctrl_test` | `+mode=property` | 1-2 |  | 2.10 | 
 | `aou_remote_react_test` | `aou_remote_react_test` |  | 1-3 |  | 1.6,6.20,18.17 | 
 | `aou_act_flit_test.mode-act_req.v0p8` | `aou_act_flit_test` | `+mode=act_req +v0p8` | 1-3 |  | 1.12 | 

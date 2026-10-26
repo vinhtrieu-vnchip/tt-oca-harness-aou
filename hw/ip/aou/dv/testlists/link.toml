@@ -379,6 +379,15 @@ tags = ["link"]
 run_modes = ["link"]
 args = ["+mode=tov"]
 
+# Quiet-window boundary: the full timeout elapses before software requests deactivation.
+[[tests]]
+name = "aou_deact_quiet_test.preelapsed"
+module = { uvm = "aou_deact_quiet_test" }
+seed = 1
+tags = ["link"]
+run_modes = ["link"]
+args = ["+mode=quiet-preelapsed"]
+
 # 2.10: INT_DEACTIVATE_PROPERTY during a remote deactivation (T1-L45, interim).
 [[tests]]
 name = "aou_deact_ctrl_test.mode-property"
@@ -425,7 +434,7 @@ args = ["+mode=deact_rsp", "+v0p8"]
 
 [[groups]]
 name = "link"
-expected_count = 42
+expected_count = 43
 tests = [
   "aou_link_act_deact_test",
   "aou_link_act_deact_test.who-both.order-simul.deact_who-both.busy-0",
@@ -466,6 +475,7 @@ tests = [
   "aou_zero_credit_test.credit-wresp.deact-1",
   "aou_deact_ctrl_test.mode-tov",
   "aou_deact_ctrl_test.mode-property",
+  "aou_deact_quiet_test.preelapsed",
   "aou_remote_react_test",
   "aou_act_flit_test.mode-act_req.v0p8",
   "aou_act_flit_test.mode-deact_rsp.v0p8",

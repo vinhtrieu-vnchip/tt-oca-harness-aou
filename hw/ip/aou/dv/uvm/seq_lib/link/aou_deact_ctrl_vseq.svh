@@ -7,8 +7,10 @@
 //   reads and software sets DEACTIVATE_START (CREDIT_MANAGE=1) +0..200 cycles
 //   later, so the DUT's last ReadData lands near the deactivation and its
 //   DeactivateReq has to wait out the 2^(v+3)-cycle quiet window behind it.
-//   aou_t1_rx_fifo_chk checks the window on every DeactivateReq (T1-L46; the
-//   quiet-window reading is the BUGS/057 interim).
+//   aou_t1_rx_fifo_chk checks the post-traffic minimum (T1-L46).
+// +mode=quiet-preelapsed: no traffic is issued, the largest quiet window is
+//   allowed to elapse after ENABLED, then T1-L52 checks that DEACTIVATE_START
+//   does not start a second full quiet window.
 // +mode=property (plan 2.10; BUGS/010, which covers the bit too): the remote
 //   die deactivates with PropertyReq 0, the only value it may send (the bit is
 //   reserved on DeactivateReq in v0.7 and RsvdZero in v0.8, which defines no
@@ -29,10 +31,30 @@ class aou_deact_ctrl_vseq extends aou_link_base_vseq;
     case (mode)
       "tov":      tov_sweep();
       "property": property_loops();
+      "quiet-preelapsed": quiet_preelapsed();
       default:    `uvm_fatal(get_type_name(), {"unknown +mode=", mode})
     endcase
+    if (mode == "quiet-preelapsed") return;
     sw_activate(AOU_T1_BY_APB, AOU_T1_DUT_FIRST);
     check_traffic(num_txns);
+  endtask
+
+  task quiet_preelapsed();
+    int unsigned v = 7;
+    int unsigned win = 1 << (v + 3);
+    write_field(p_sequencer.regs.aou_init.deactivate_time_out_value, uvm_reg_data_t'(v));
+    write_field(p_sequencer.regs.aou_con0.credit_manage, 1);
+    cfg.l3_cfg.resp_credits_after_deact_ack = 1'b1;
+    sw_activate(AOU_T1_BY_APB, AOU_T1_DUT_FIRST);
+    // No AXI traffic is issued in this scenario. Waiting longer than the
+    // maximum encoded interval proves the timer elapsed while ENABLED.
+    wait_cycles(win + 16);
+    if (env.rx_fifo_chk == null)
+      `uvm_fatal(get_type_name(), "T1-L52 requires the environment RX FIFO checker")
+    env.rx_fifo_chk.expect_preelapsed_deactivate(64);
+    deactivate(AOU_T1_BY_APB, 1'b0, -1);
+    env.rx_fifo_chk.finish_preelapsed_deactivate();
+    drain();
   endtask
 
   // ---------------------------------------------------------------------
