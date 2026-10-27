@@ -25,3 +25,7 @@
   `B``_BIN(w1c_while_hung, 8, 8) `B``_BIN(unmask_while_set, 9, 9) \
   `B``_BIN(multi_rp_set, 10, 10) `B``_BIN(re_expiry_after_sw, 11, 11) \
   `B``_BIN(re_expiry_after_hard, 12, 12) `B``_VALS(expiry_rp, 13, 16)
+
+// Accepted RX wire chunks containing three Misc starts, with the third a
+// nonzero RP0 RDATA CrdtGrant (the focused RX candidate-capacity scenario).
+`define AOU_T1_RX_MISC_FC_EVENT(B) `B``_BIN(three_misc_third_rdata, 1, 1)

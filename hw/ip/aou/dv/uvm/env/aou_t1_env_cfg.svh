@@ -76,6 +76,11 @@ class aou_t1_env_cfg extends uvm_object;
   // class it allows past the RX FIFO (register slice, splitter, width converter).
   bit            rx_fifo_chk_en = 1'b1;
   int unsigned   rx_fifo_slack = 8;
+  // The focused RX Misc regression requires accepted-wire coverage of a
+  // three-Misc decoder chunk and verifies the resulting RP0 RDATA counter.
+  bit            rx_misc_dense_cov_en;
+  bit            rx_misc_ordered_grant_chk_en;
+  bit            rx_misc_rdata_counter_chk_en;
 
   // aou_t1_crd_flow_chk bounds, in cycles the Adapter takes a beat: a credit
   // class may stall this long while an RP has credit and work for it and another

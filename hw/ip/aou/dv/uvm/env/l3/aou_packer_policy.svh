@@ -30,10 +30,11 @@ class aou_packer_policy extends uvm_object;
   int unsigned      empty_flit_pct;
   aou_cred_method_e cred_method = AOU_CRM_DUT_LIKE;
   // Non-Activation Misc messages per half-flit (v0.8 4.4 allows 2, so only
-  // 1 and 2 are legal). An Activation message always travels alone in its
-  // flit (v0.8 4.4); there is no knob for the v0.7 layout, which v0.8 forbids
-  // and whose receiver reaction it does not define.
+  // 1 and 2 are legal). By default, Activation messages travel alone. The
+  // focused v0.7.1 RX Misc regression may share an ActivateAck with its
+  // initial CrdtGrant, as v0.7.1 R6 only requires one Activation at G0.
   int unsigned      misc_per_half_max = 2;
+  bit               v07_activation_with_credits;
   // Hold every credited message back (Misc still goes) until cleared, so a
   // batch queues up and leaves in densely packed flits; the caller kicks the
   // model when it clears the hold.
@@ -115,10 +116,11 @@ class aou_packer_policy extends uvm_object;
   virtual function string convert2string();
     return $sformatf({"max_msgs=%0d hole=%0d%%/%0d start=%0d split=%0d span=%0d rand=%0d ",
                       "cred_only=%0d empty=%0d%% cred=%0d misc_half=%0d hold=%0d ",
-                      "prof=%0d%% zero_grants=%0d best_fit=%0d wdata_first=%0d%%/%0d"},
+                      "prof=%0d%% zero_grants=%0d best_fit=%0d wdata_first=%0d%%/%0d act_share=%0d"},
                      max_msgs_per_flit, hole_pct, max_hole, start_granule, split_at,
                      allow_span, random_order, credit_only_flits, empty_flit_pct,
                      cred_method, misc_per_half_max, hold_credited, prof_pct,
-                     zero_grants, best_fit, wdata_first_pct, wdata_first_beats);
+                     zero_grants, best_fit, wdata_first_pct, wdata_first_beats,
+                     v07_activation_with_credits);
   endfunction
 endclass

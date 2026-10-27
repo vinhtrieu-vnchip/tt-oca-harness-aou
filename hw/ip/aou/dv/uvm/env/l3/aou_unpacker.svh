@@ -194,11 +194,9 @@ class aou_unpacker extends uvm_object;
       viol((req && ack) ? "AOU-R8" : "AOU-R6", f, acts[1],
            $sformatf("%0d Activation messages in one flit", acts.size()));
     end
-    // v0.8 4.4 placement, independent of the wire format (spec_rev): the
-    // Activation alone in its flit, at most 2 other Misc per half-flit. Always
-    // on our own flits; on the DUT's only with cfg.v0p8 (+v0p8) or the v0.8
-    // wire format, since the DUT implements v0.7.1's rule.
-    if (dir == AOU_L3_TX || cfg.spec_rev == AOU_SPEC_V08 || cfg.v0p8) begin
+    // v0.8 4.4 adds the Activation-alone and per-half Misc limits. v0.7.1 R6
+    // permits one Activation at G0 to share its flit with other messages.
+    if (cfg.spec_rev == AOU_SPEC_V08 || cfg.v0p8) begin
       ledger_chk("AOU-R7");
       if (acts.size() > 0 && f.num_starts() > acts.size()) begin
         string k = "";

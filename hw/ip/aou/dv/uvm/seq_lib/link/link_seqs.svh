@@ -7,6 +7,7 @@
 `include "link/aou_link_force_deact_vseq.svh"
 `include "link/aou_zero_credit_vseq.svh"
 `include "link/aou_credit_return_vseq.svh"
+`include "link/aou_rx_misc_credit_loss_vseq.svh"
 `include "link/aou_act_after_deact_vseq.svh"
 `include "link/aou_rx_credit_vseq.svh"
 `include "link/aou_act_rx_drain_vseq.svh"

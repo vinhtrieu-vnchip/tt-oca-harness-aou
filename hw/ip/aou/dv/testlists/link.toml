@@ -97,6 +97,16 @@ tags = ["link"]
 run_modes = ["link"]
 args = ["+method=grant"]
 
+# Focused expected-fail-on-current-DUT detector for three Misc starts in one
+# 12-granule RX decode chunk; intentionally excluded from PASS-only groups.
+[[tests]]
+name = "aou_rx_misc_credit_loss_test"
+module = { uvm = "aou_rx_misc_credit_loss_test" }
+target = "1x512-sp64"
+seed = 1
+tags = ["link", "credit", "diagnostic"]
+run_modes = ["link"]
+
 [[tests]]
 name = "aou_credit_return_test.method-hdr"
 module = { uvm = "aou_credit_return_test" }

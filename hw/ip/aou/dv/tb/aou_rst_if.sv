@@ -26,6 +26,12 @@ interface aou_rst_if (input logic clk, input logic pclk);
   logic [7:0] rx_w_pend;
   logic        rx_msgcrdt_valid;
   logic [15:0] rx_msgcrdt;
+  // RX CrdtGrant decoder outputs handed to the TX credit controller. The
+  // 60-bit encoding is WREQ/RREQ/WDATA/RDATA/WRESP, RP0..RP3, 3 bits each
+  // (WRESP is zero-extended from its 2-bit wire code).
+  logic [3:0]        rx_crdtgrant_valid;
+  logic [3:0][59:0]  rx_crdtgrant_enc;
+  logic [15:0]       rx_rdata_credit_rp0;
   logic apb_psel;
   logic apb_bridge_idle;
   wire  apb_quiet = apb_psel === 1'b0 && apb_bridge_idle === 1'b1;
@@ -42,7 +48,8 @@ interface aou_rst_if (input logic clk, input logic pclk);
 
   clocking mon_cb @(posedge clk);
     input rst_n, prst_n, core_rst_n, rx_pend, rx_w_pend, apb_quiet, dft_modescan,
-          rx_msgcrdt_valid, rx_msgcrdt;
+          rx_msgcrdt_valid, rx_msgcrdt, rx_crdtgrant_valid, rx_crdtgrant_enc,
+          rx_rdata_credit_rp0;
   endclocking
 
   clocking pmon_cb @(posedge pclk);

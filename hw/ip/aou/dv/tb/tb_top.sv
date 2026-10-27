@@ -65,8 +65,12 @@ module tb_top;
   localparam int WD1 = (FDI_CFG == 4) ? 1024 : 512;
   localparam bit TWO_PHY_BUILD = 1'b1;
 `else
+  localparam int WD1 = 512;
   localparam bit TWO_PHY_BUILD = 1'b0;
 `endif
+  localparam int FDI_ACTIVE_WD = (WD0 > WD1) ? WD0 : WD1;
+  localparam int RX_PHASE_CNT = 2048 / FDI_ACTIVE_WD;
+  localparam int RX_DEC_MULTI = (FDI_ACTIVE_WD == 256) ? 1 : 4 / RX_PHASE_CNT;
 
   // The RTL does not cross-check FDI_CONFIG against TWO_PHY.
   initial begin
@@ -160,6 +164,42 @@ module tb_top;
                            u_dut.u_aou_core_top.u_aou_core.w_rxcore_msgcrdt_wdatacred,
                            u_dut.u_aou_core_top.u_aou_core.w_rxcore_msgcrdt_rreqcred,
                            u_dut.u_aou_core_top.u_aou_core.w_rxcore_msgcrdt_wreqcred};
+  // Passive T1 observation of the RX decoder's CrdtGrant handoff into the
+  // TX credit controller and its RP0 RDATA credit counter.
+  for (genvar d = 0; d < RX_DEC_MULTI; d++) begin : g_rx_crdtgrant_dec
+    for (genvar m = 0; m < 2; m++) begin : g_rx_crdtgrant_slot
+      localparam int SLOT = d * 2 + m;
+      assign rst.rx_crdtgrant_valid[SLOT] =
+          u_dut.u_aou_core_top.u_aou_core.w_rxcore_crdtgrant_valid[d][m];
+      assign rst.rx_crdtgrant_enc[SLOT] = {
+          u_dut.u_aou_core_top.u_aou_core.w_rxcore_crdtgrant_wreqcred0[d][m],
+          u_dut.u_aou_core_top.u_aou_core.w_rxcore_crdtgrant_wreqcred1[d][m],
+          u_dut.u_aou_core_top.u_aou_core.w_rxcore_crdtgrant_wreqcred2[d][m],
+          u_dut.u_aou_core_top.u_aou_core.w_rxcore_crdtgrant_wreqcred3[d][m],
+          u_dut.u_aou_core_top.u_aou_core.w_rxcore_crdtgrant_rreqcred0[d][m],
+          u_dut.u_aou_core_top.u_aou_core.w_rxcore_crdtgrant_rreqcred1[d][m],
+          u_dut.u_aou_core_top.u_aou_core.w_rxcore_crdtgrant_rreqcred2[d][m],
+          u_dut.u_aou_core_top.u_aou_core.w_rxcore_crdtgrant_rreqcred3[d][m],
+          u_dut.u_aou_core_top.u_aou_core.w_rxcore_crdtgrant_wdatacred0[d][m],
+          u_dut.u_aou_core_top.u_aou_core.w_rxcore_crdtgrant_wdatacred1[d][m],
+          u_dut.u_aou_core_top.u_aou_core.w_rxcore_crdtgrant_wdatacred2[d][m],
+          u_dut.u_aou_core_top.u_aou_core.w_rxcore_crdtgrant_wdatacred3[d][m],
+          u_dut.u_aou_core_top.u_aou_core.w_rxcore_crdtgrant_rdatacred0[d][m],
+          u_dut.u_aou_core_top.u_aou_core.w_rxcore_crdtgrant_rdatacred1[d][m],
+          u_dut.u_aou_core_top.u_aou_core.w_rxcore_crdtgrant_rdatacred2[d][m],
+          u_dut.u_aou_core_top.u_aou_core.w_rxcore_crdtgrant_rdatacred3[d][m],
+          1'b0, u_dut.u_aou_core_top.u_aou_core.w_rxcore_crdtgrant_wrespcred0[d][m],
+          1'b0, u_dut.u_aou_core_top.u_aou_core.w_rxcore_crdtgrant_wrespcred1[d][m],
+          1'b0, u_dut.u_aou_core_top.u_aou_core.w_rxcore_crdtgrant_wrespcred2[d][m],
+          1'b0, u_dut.u_aou_core_top.u_aou_core.w_rxcore_crdtgrant_wrespcred3[d][m]};
+    end
+  end
+  for (genvar s = RX_DEC_MULTI * 2; s < 4; s++) begin : g_rx_crdtgrant_unused
+    assign rst.rx_crdtgrant_valid[s] = 1'b0;
+    assign rst.rx_crdtgrant_enc[s] = '0;
+  end
+  assign rst.rx_rdata_credit_rp0 =
+      16'(u_dut.u_aou_core_top.u_aou_core.w_aou_tx_rdatacred[0]);
   // The reset of the DUT's AXI port logic (AOU_CORE and the RX FIFOs, every S and
   // M port pin): the core reset, I_RESETN and AOU_SW_RESET. Either reset loses the AXI transactions in flight
   // or queued in the core (MAS 7.3.6, integration guide 3.1.1), and the SoC must

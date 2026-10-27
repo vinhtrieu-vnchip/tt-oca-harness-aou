@@ -6,6 +6,7 @@
 `include "link/aou_link_force_deact_test.svh"
 `include "link/aou_zero_credit_test.svh"
 `include "link/aou_credit_return_test.svh"
+`include "link/aou_rx_misc_credit_loss_test.svh"
 `include "link/aou_act_after_deact_test.svh"
 `include "link/aou_rx_credit_test.svh"
 `include "link/aou_act_rx_drain_test.svh"

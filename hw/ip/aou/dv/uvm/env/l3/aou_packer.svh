@@ -257,7 +257,7 @@ class aou_packer extends uvm_object;
       lnk.on_sent(a);
       gp = a.num_granules();
       nmsgs++;
-      alone = 1'b1;   // v0.8 4.4: nothing else in an Activation's flit
+      alone = (cfg.spec_rev == AOU_SPEC_V08 || !cfg.pol.v07_activation_with_credits);
     end
 
     if (meth == AOU_CRM_MIXED) meth = aou_cred_method_e'($urandom_range(0, 2));
