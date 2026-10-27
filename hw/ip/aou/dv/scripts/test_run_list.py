@@ -33,6 +33,7 @@ sys.path.insert(0, SCRIPTS)
 import run_ctl  # noqa: E402
 import run_list  # noqa: E402
 import stale_build  # noqa: E402
+import check_run  # noqa: E402
 
 FAKE_MAKE = textwrap.dedent("""\
     #!/usr/bin/env python3
@@ -463,6 +464,57 @@ class Verdict(unittest.TestCase):
         self.assertEqual(run_list.verdict("XPASS: x\nFAIL t\n"), "FAIL")
         self.assertEqual(run_list.verdict("XPASS: x\n"), "FAIL")
         self.assertEqual(run_list.verdict(""), "FAIL")
+
+
+class RxMiscNonvacuity(unittest.TestCase):
+
+    def setUp(self):
+        self.dv_root = os.path.dirname(SCRIPTS)
+        self.temp_dir = tempfile.mkdtemp()
+        self.expected = os.path.join(self.temp_dir, "expected_fail.yaml")
+        open(self.expected, "w", encoding="utf-8").close()
+
+    def tearDown(self):
+        shutil.rmtree(self.temp_dir, ignore_errors=True)
+
+    def judge(self, error=""):
+        text = ("UVM Report Summary\n" + error +
+                "UVM_INFO @ 0: reporter [RNTST] Running test\n")
+        return check_run.judge(text, "fixture/sim.log", self.expected,
+                               "aou_rx_misc_credit_loss_test")
+
+    def read_dv(self, path):
+        with open(os.path.join(self.dv_root, path), encoding="utf-8") as fh:
+            return fh.read()
+
+    def test_zero_event_is_a_production_failure(self):
+        checker = self.read_dv("uvm/env/aou_t1_rx_align_chk.svh")
+        self.assertIn("if (dense_misc_cov_en && n_dense_misc_chunks == 0)", checker)
+        self.assertIn("STIMULUS_NOT_REACHED:", checker)
+        self.assertTrue(any(line.startswith("FAIL") for line in self.judge(
+            "UVM_ERROR aou_t1_rx_align_chk STIMULUS_NOT_REACHED: no accepted RX chunk\n")))
+
+    def test_qualifying_event_with_matching_grants_can_pass(self):
+        checker = self.read_dv("uvm/env/aou_t1_rx_align_chk.svh")
+        self.assertIn("misc_count[c] >= 3", checker)
+        self.assertIn("grant.get_cred(0, AOU_CC_RDATA) != 0", checker)
+        self.assertIn("if (exp_grant[0] === got_grant[0])", checker)
+        self.assertEqual(self.judge(), ["PASS: fixture/sim.log"])
+
+    def test_missing_decoder_grant_remains_t1_c43_failure(self):
+        checker = self.read_dv("uvm/env/aou_t1_rx_align_chk.svh")
+        self.assertIn('aou_rule_log::fire("T1-C43", get_type_name())', checker)
+        self.assertTrue(any(line.startswith("FAIL") for line in self.judge(
+            "UVM_ERROR aou_t1_rx_align_chk T1-C43: accepted wire grant missing at decoder\n")))
+
+    def test_non_target_tests_do_not_enable_the_gate(self):
+        cfg = self.read_dv("uvm/env/aou_t1_env_cfg.svh")
+        env = self.read_dv("uvm/env/aou_t1_env.svh")
+        target = self.read_dv("uvm/tests/link/aou_rx_misc_credit_loss_test.svh")
+        self.assertIn("bit            rx_misc_dense_cov_en;", cfg)
+        self.assertIn("rx_align.dense_misc_cov_en = cfg.rx_misc_dense_cov_en;", env)
+        self.assertIn("cfg.rx_misc_dense_cov_en = 1'b1;", target)
+        self.assertEqual(self.judge(), ["PASS: fixture/sim.log"])
 
 
 class StaleBuild(unittest.TestCase):

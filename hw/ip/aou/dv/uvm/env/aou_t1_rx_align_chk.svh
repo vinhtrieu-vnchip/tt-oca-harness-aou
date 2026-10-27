@@ -295,6 +295,12 @@ class aou_t1_rx_align_chk extends uvm_component;
 
   function void check_phase(uvm_phase phase);
     super.check_phase(phase);
+    // The focused diagnostic's qualification depends on reaching the accepted-
+    // wire event, not just on the general grant/counter checks below. Keep this
+    // requirement opt-in so ordinary tests retain the checker-only contract.
+    if (dense_misc_cov_en && n_dense_misc_chunks == 0)
+      `uvm_error(get_type_name(),
+                 "STIMULUS_NOT_REACHED: no accepted RX chunk had three Misc starts with a nonzero RP0 RDATA grant third")
     if (rdata_counter_chk_en) begin
       // The focused regression explicitly drains beyond `slack`; make its
       // end-of-test closure strict without treating an unrelated test ending
