@@ -13,6 +13,8 @@ class aou_fdi_gate extends uvm_object;
   bit rx_early = 1'b0;
   bit rx_busy = 1'b0;  // PL driver is inside a flit (including its replays)
   bit tx_busy = 1'b0;  // TX responder has seen part of a DUT flit
+  int unsigned tx_partial_beats;  // accepted TX beats in the current partial flit
+  int unsigned tx_flit_beats;  // beats per flit, published by the TX responder
   // L2 left Active mid-flit (LinkError, UCIe r1.1 8.3.3.7): L1 abandons the
   // flits in progress at once instead of finishing them. Cleared when the
   // gate opens again.

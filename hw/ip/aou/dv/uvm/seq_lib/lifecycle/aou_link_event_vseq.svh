@@ -196,7 +196,12 @@ class aou_link_event_vseq extends aou_link_base_vseq;
     // port can raise it again: no upper bound.
     expect_event("INT_MI0_ID_MISMATCH", 0, 0);
     traffic_nb(AOU_T1_BOTH_DIRS, num_txns);
-    wait_cycles($urandom_range(500, 20));
+    // A directed RX-mid-flit LinkError waits for the PL driver to publish
+    // rx_busy. Do not insert a random dwell between starting finite traffic
+    // and that handshake: remote-to-local RX traffic can drain before the
+    // LSM begins waiting. The LSM's bounded rx_busy wait is the synchronizer.
+    if (!(ev == LSM_EV_LINKERROR && cfg.lsm_cfg.le_mid_flit_dir == "rx"))
+      wait_cycles($urandom_range(500, 20));
     // last_prog carries the interrupt mask (+link_down_mask) across the reset.
     recover(last_prog, 1'b1, ev, inband_drop);
     wait_traffic();

@@ -38,7 +38,6 @@ class aou_fdi_pl_driver extends uvm_driver #(aou_flit_item);
         seq_item_port.item_done();
         continue;
       end
-      cfg.gate.rx_busy = 1'b1;
       drive_flit(req);
       cfg.gate.rx_busy = 1'b0;
       seq_item_port.item_done();
@@ -118,6 +117,9 @@ class aou_fdi_pl_driver extends uvm_driver #(aou_flit_item);
                               it.get_beat(cfg.beat_bytes, idx);
         cancel_next = 1'b0;
         @(vif.drv_cb);
+        // Publish RX busy only after the first beat has reached the passive
+        // sampling edge; the LSM's mid-flit trigger must not race beat zero.
+        if (s == 0 && b == 0) cfg.gate.rx_busy = 1'b1;
       end
       case (seg_cancel[s])
         AOU_CANCEL_IDLE:  idle_cycle(1'b1);

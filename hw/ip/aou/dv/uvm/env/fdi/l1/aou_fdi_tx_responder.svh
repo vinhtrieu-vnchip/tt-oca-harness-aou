@@ -31,6 +31,7 @@ class aou_fdi_tx_responder extends uvm_component;
   endfunction
 
   task run_phase(uvm_phase phase);
+    cfg.gate.tx_flit_beats = cfg.bpf();
     vif.drv_cb.pl_trdy <= 1'b0;
     vif.drv_cb.pl_stallreq <= 1'b0;
     fork
@@ -52,13 +53,18 @@ class aou_fdi_tx_responder extends uvm_component;
       stallreq_q = 1'b0;
       tx_beat = 0;
       cfg.gate.tx_busy = 1'b0;
+      cfg.gate.tx_partial_beats = 0;
       return;
     end
-    if (trdy_q && vif.drv_cb.lp_valid === 1'b1 && vif.drv_cb.lp_irdy === 1'b1)
+    // Track a partial flit only after the pin-level handshake. `trdy_q` is
+    // the responder's next output decision and can lead the sampled PL_TRDY.
+    if (vif.mon_cb.pl_trdy === 1'b1 && vif.mon_cb.lp_valid === 1'b1 &&
+        vif.mon_cb.lp_irdy === 1'b1)
       tx_beat = (tx_beat + 1) % cfg.bpf();
     // LinkError mid-flit: the partial DUT flit is abandoned, never accepted.
     if (cfg.gate.abort) tx_beat = 0;
     cfg.gate.tx_busy = tx_beat != 0;
+    cfg.gate.tx_partial_beats = tx_beat;
 
     if (stall_want && !stallreq_q && !ack) begin
       stallreq_q = 1'b1;

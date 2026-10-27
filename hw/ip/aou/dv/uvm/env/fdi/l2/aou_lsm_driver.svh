@@ -396,7 +396,10 @@ class aou_lsm_driver extends uvm_driver #(aou_lsm_item);
       tx = 1'b0;
       rx = 1'b0;
       foreach (cfg.gate[i]) begin
-        tx |= cfg.gate[i].tx_busy;
+        // Leave one beat for the status transition: selecting the last beat
+        // can complete the flit during the next-cycle abort handshake.
+        tx |= cfg.gate[i].tx_busy && cfg.gate[i].tx_flit_beats > 1 &&
+              cfg.gate[i].tx_partial_beats < cfg.gate[i].tx_flit_beats - 1;
         rx |= cfg.gate[i].rx_busy;
       end
       case (cfg.le_mid_flit_dir)
