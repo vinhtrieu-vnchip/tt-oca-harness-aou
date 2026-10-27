@@ -1,0 +1,3 @@
+# gen_dv_docs leaves a trailing separator-space for the blank Expected Failure
+# cell in generated VPLAN summary rows.
+hw/ip/aou/dv/docs/gen/vplan_summary.adoc whitespace=-blank-at-eol
