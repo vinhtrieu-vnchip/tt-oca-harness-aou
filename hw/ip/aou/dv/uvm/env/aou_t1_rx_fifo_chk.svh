@@ -26,12 +26,14 @@
 // The checks other than T1-L46 stop for good once the remote die sends beyond its credit
 // or the DUT requests LinkReset (injection tests: the DUT may drop messages).
 `uvm_analysis_imp_decl(_rx_fifo_tb)
+`uvm_analysis_imp_decl(_rx_fifo_apb)
 
 class aou_t1_rx_fifo_chk extends uvm_component;
   `uvm_component_utils(aou_t1_rx_fifo_chk)
 
   uvm_analysis_imp #(aou_msg, aou_t1_rx_fifo_chk) dut_imp;   // DUT -> remote die messages
   uvm_analysis_imp_rx_fifo_tb #(aou_msg, aou_t1_rx_fifo_chk) tb_imp;   // remote die -> DUT
+  uvm_analysis_imp_rx_fifo_apb #(aou_apb_item, aou_t1_rx_fifo_chk) apb_imp;
 
   aou_axi_vif_t  vif[];                        // M ports
   aou_l3_model   model;
@@ -50,11 +52,16 @@ class aou_t1_rx_fifo_chk extends uvm_component;
   protected bit              req_seen;
   protected longint          last_msg = -1;
   protected longint unsigned req_t[2][$];   // remote writes, reads open: send cycle
+  protected bit              preelapsed_deact_pending;
+  protected bit              preelapsed_deact_write_seen;
+  protected longint unsigned preelapsed_deact_write_cycle;
+  protected int unsigned     preelapsed_deact_max_cycles = 64;
 
   function new(string name, uvm_component parent);
     super.new(name, parent);
     dut_imp = new("dut_imp", this);
     tb_imp = new("tb_imp", this);
+    apb_imp = new("apb_imp", this);
   endfunction
 
   // Requests the remote die sent on RP r (k: 0 WriteReq, 1 ReadReq) whose AW/AR
@@ -153,6 +160,31 @@ class aou_t1_rx_fifo_chk extends uvm_component;
     if (m.msg_type == AOU_MT_RREQ) req_t[1].push_back(cycle);
   endfunction
 
+  // Test intent for a quiet window that elapsed before DEACTIVATE_START.
+  // Anchor the bounded response at the completed APB transfer, not at when
+  // the sequence queued the register operation.
+  function void expect_preelapsed_deactivate(int unsigned max_cycles = 64);
+    preelapsed_deact_pending = 1'b1;
+    preelapsed_deact_write_seen = 1'b0;
+    preelapsed_deact_max_cycles = max_cycles;
+  endfunction
+
+  function void finish_preelapsed_deactivate();
+    if (!preelapsed_deact_pending) return;
+    aou_rule_log::check("T1-L52", get_type_name());
+    aou_rule_log::fire("T1-L52", get_type_name());
+    `uvm_error(get_type_name(),
+               "T1-L52: no DUT DeactivateReq observed for the preelapsed quiet-window case")
+    preelapsed_deact_pending = 1'b0;
+  endfunction
+
+  function void write_rx_fifo_apb(aou_apb_item it);
+    if (!preelapsed_deact_pending || rm == null || it.dir != AOU_APB_WRITE || it.slverr ||
+        uvm_reg_addr_t'(it.addr) != rm.aou_init.get_address() || it.data[1] !== 1'b1) return;
+    preelapsed_deact_write_cycle = cycle;
+    preelapsed_deact_write_seen = 1'b1;
+  endfunction
+
   protected function void retire(aou_msg m);
     aou_msg_rdata rd;
     if (m.msg_type == AOU_MT_WRESP) begin
@@ -182,6 +214,19 @@ class aou_t1_rx_fifo_chk extends uvm_component;
 
   function void write(aou_msg m);
     aou_msg_act a;
+    if ($cast(a, m) && a.op == AOU_DEACT_REQ && !a.property_req &&
+        preelapsed_deact_pending) begin
+      longint unsigned gap = cycle - preelapsed_deact_write_cycle;
+      aou_rule_log::check("T1-L52", get_type_name());
+      if (!preelapsed_deact_write_seen || gap > 64'(preelapsed_deact_max_cycles)) begin
+        aou_rule_log::fire("T1-L52", get_type_name());
+        `uvm_error(get_type_name(), $sformatf(
+            {"T1-L52: DeactivateReq %0d cycles after the completed DEACTIVATE_START write; ",
+             "preelapsed quiet-window limit is %0d cycles (APB write observed=%0b)"},
+            gap, preelapsed_deact_max_cycles, preelapsed_deact_write_seen))
+      end
+      preelapsed_deact_pending = 1'b0;
+    end
     if (m.cred_class() != AOU_CC_NONE) begin
       last_msg = longint'(cycle);
       retire(m);

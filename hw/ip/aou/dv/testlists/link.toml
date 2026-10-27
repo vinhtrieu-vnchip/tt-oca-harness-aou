@@ -402,6 +402,15 @@ tags = ["link"]
 run_modes = ["link"]
 args = ["+mode=property"]
 
+# 2.12: the quiet window elapsed before software requests deactivation (T1-L52).
+[[tests]]
+name = "aou_deact_quiet_test.preelapsed"
+module = { uvm = "aou_deact_quiet_test" }
+seed = 1
+tags = ["link"]
+run_modes = ["link"]
+args = ["+mode=quiet-preelapsed"]
+
 # The remote die re-activates in the flit after its DeactivateAck (AoU 8.4). The
 # Req must find the DUT DISABLED, not DEACTIVATE (no INVALID_ACTMSG); the FDI
 # link stays Active across the deactivation (a deactivation never takes it
@@ -438,7 +447,7 @@ args = ["+mode=deact_rsp", "+v0p8"]
 
 [[groups]]
 name = "link"
-expected_count = 43
+expected_count = 44
 tests = [
   "aou_link_act_deact_test",
   "aou_link_act_deact_test.who-both.order-simul.deact_who-both.busy-0",
@@ -480,6 +489,7 @@ tests = [
   "aou_zero_credit_test.credit-wresp.deact-1",
   "aou_deact_ctrl_test.mode-tov",
   "aou_deact_ctrl_test.mode-property",
+  "aou_deact_quiet_test.preelapsed",
   "aou_remote_react_test",
   "aou_act_flit_test.mode-act_req.v0p8",
   "aou_act_flit_test.mode-deact_rsp.v0p8",

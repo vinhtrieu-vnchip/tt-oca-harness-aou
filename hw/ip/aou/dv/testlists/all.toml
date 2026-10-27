@@ -88,7 +88,7 @@ tests = [
 # Functional areas (no stress, matrix, perf or assertion builds)
 [[groups]]
 name = "functional"
-expected_count = 246
+expected_count = 247
 tests = [
   "aou_t1_slice_test",
   "aou_t1_deact_test",
@@ -238,6 +238,7 @@ tests = [
   "aou_zero_credit_test.credit-wresp.deact-1",
   "aou_deact_ctrl_test.mode-tov",
   "aou_deact_ctrl_test.mode-property",
+  "aou_deact_quiet_test.preelapsed",
   "aou_remote_react_test",
   "aou_act_flit_test.mode-act_req.v0p8",
   "aou_act_flit_test.mode-deact_rsp.v0p8",
@@ -341,7 +342,7 @@ tests = [
 # Every runnable T1 scenario; run_list.py skips entries whose target differs
 [[groups]]
 name = "all"
-expected_count = 461
+expected_count = 462
 tests = [
   "aou_attr_test.attr_excl-1.remote_max_burst-1.4xmix4211-sp128",
   "aou_small_size_test",
@@ -557,6 +558,7 @@ tests = [
   "aou_zero_credit_test.credit-wresp.deact-1",
   "aou_deact_ctrl_test.mode-tov",
   "aou_deact_ctrl_test.mode-property",
+  "aou_deact_quiet_test.preelapsed",
   "aou_remote_react_test",
   "aou_act_flit_test.mode-act_req.v0p8",
   "aou_act_flit_test.mode-deact_rsp.v0p8",

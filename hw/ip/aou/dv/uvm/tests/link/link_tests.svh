@@ -10,5 +10,6 @@
 `include "link/aou_rx_credit_test.svh"
 `include "link/aou_act_rx_drain_test.svh"
 `include "link/aou_deact_ctrl_test.svh"
+`include "link/aou_deact_quiet_test.svh"
 `include "link/aou_remote_react_test.svh"
 `include "link/aou_act_flit_test.svh"

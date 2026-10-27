@@ -240,6 +240,7 @@ class aou_t1_env extends uvm_env;
       rx_fifo_chk.rm = regs.model;
       l3.ap_rx_msg.connect(rx_fifo_chk.dut_imp);
       l3.ap_tx_msg.connect(rx_fifo_chk.tb_imp);
+      apb.mon.ap.connect(rx_fifo_chk.apb_imp);
     end
     sw_isr.status = status;
     sw_isr.rm = regs.model;
