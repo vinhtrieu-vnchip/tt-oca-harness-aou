@@ -289,3 +289,9 @@ T1-RM06,aou_t1_remote_mgr,,DUT,A WriteResp/ReadData the DUT sends carries an RP 
 T1-L4A01,aou_t1_l4a_adapter,,DUT,Every WriteData beat of one write burst carries the same DLENGTH,MAS 3.5.2
 T1-L4A02,aou_t1_l4a_adapter,,DUT,"WriteData DLENGTH is at least max(the size of its WriteReq, 256 bits)","AoU 5.4 (DLENGTH); project ruling: DLENGTH is self-describing, any width at or above the WriteReq's size is legal"
 T1-L4A04,aou_t1_l4a_adapter,,MODEL,The remote model's maximum burst length changes only while it has no request in hand,project ruling: a maximum burst change is legal only while the remote is idle
+FEAT-R31,aou_t1_rp_map_chk,,DUT,"A merge group serialises its writes: while a port's AW is the lane's owner and its W beats have not reached WLAST, no other AW of the group is accepted",MAS 3.10.4; plan 12.22
+FEAT-R32,aou_t1_rp_map_chk,,DUT,W beats on a merge group come only from the current AW owner; a beat with no owner is a violation,MAS 3.10.4; plan 12.22
+FEAT-R33,aou_t1_rp_map_chk,,DUT,"The owner's ownership ends exactly on its WLAST, on the AWLEN+1 beat of its AW, not early or late",MAS 3.10.4; plan 12.22
+FEAT-R34,aou_t1_rp_map_chk,,DUT,ARB_MODE round-robin (0 or 3): a port of a merge group is not granted twice in a row while another port of the group presents the same channel,MAS 3.2.1 Figure 5 (scheme reused by 3.10.4); plan 12.22
+FEAT-R35,aou_t1_rp_map_chk,,TEST,"The deterministic +rp_map_require_merge scenario observes contended merged grants, multiple arbitration winners, and completed writes from multiple source ports",test intent; plan 12.22
+FEAT-R36,aou_t1_rp_map_chk,,DUT,"ARB_MODE 1 (Port QoS): while the granted port has waited less than the starvation timer threshold, no port of the merge group with a strictly lower tier is granted on a channel a higher tier presents",MAS 3.2.1 High-Normal-Low order with PRIOR_TIMER promotion (reused by 3.10.4); plan 12.22

@@ -182,8 +182,9 @@ Credit is per RP and per class (WriteReq, ReadReq, WriteData, ReadData,
 WriteResp); resource planes are independent. The asymmetric RP mapping
 (`ASYMMETRIC_RP_PROC_CON`, MAS 3.10.4) routes each S port's requests to a TX
 lane and may merge several ports onto one; the bench programs a random legal
-mapping per seed, and the two `cg_rp_map` groups show which routes and
-mappings carried traffic.
+mapping per seed; `cg_rp_map_req` and `cg_rp_map_cfg` show which routes and
+mappings carried traffic. `cg_rp_map_arb` and `cg_rp_map_owner` record accepted
+grant and write-owner activity for the dedicated three-port case.
 Code: `uvm/env/l3/aou_l3_cov.svh`, `uvm/env/aou_t1_crd_flow_chk.svh`,
 `uvm/env/aou_t1_crd_rr_chk.svh`, `uvm/env/aou_t1_rp_map_chk.svh`.
 
@@ -195,6 +196,8 @@ Code: `uvm/env/l3/aou_l3_cov.svh`, `uvm/env/aou_t1_crd_flow_chk.svh`,
 | `cg_crd_rr` | The DUT's round-robin return of header credit over RPs (MAS 3.9) | RPs owed credit when a test opened a window {2, 3, 4} | `env.cg_crd_rr`
 | `cg_rp_map_req` | The route each request the DUT sent took (MAS 3.10.4) | write/read; the S port it came from × the TX lane it went on (every port to every lane); route: mapping disabled, enabled on the port's own lane, moved to another port's lane alone, merged with other ports; route × direction | `env.cg_rp_map_req`
 | `cg_rp_map_cfg` | Each mapping that carried a request, once per programming or activation | shape: disabled with the lane selects at reset or not, enabled as the identity, moved ports only, one merge group of 2, 3 or 4 ports, two pairs; the DUT's RP count against the remote die's (2-4 × 1-4); merged or not, crossed with that pairing; a merge group of one width or of mixed widths; a port on a lane whose own port is narrower | `env.cg_rp_map_cfg`
+| `cg_rp_map_arb` | Each accepted AW/AR grant on a merge group (MAS 3.10.4) | round-robin mode 0 or reserved mode 3; group size; number of source ports presenting that channel; granted source port; mode × winner | `env.cg_rp_map_arb`
+| `cg_rp_map_owner` | Each next AW grant after a completed write on the same merge-group lane | completed write owner × next write owner | `env.cg_rp_map_owner`
 |===
 
 Excluded: the model's own credit counter saturating (no target); the model
@@ -204,7 +207,8 @@ than two RPs owed, which has nothing to order; the width points of
 `cg_rp_map_cfg` when no port is merged or none is wider than its lane. Not
 every pairing bin is reachable on every configuration (a 2-RP build has no
 merge of 3); the target is the union over configurations. Illegal: the DUT
-sending without credit (a checker failure).
+sending without credit (a checker failure). The merge-arbitration check covers
+round-robin modes only; QoS priority and timer-policy behavior are not asserted.
 
 ==== 6. AXI Transactions Across the Link (AMBA AXI4)
 

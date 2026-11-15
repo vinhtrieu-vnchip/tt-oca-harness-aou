@@ -365,7 +365,7 @@ tests = [
 # Every runnable T1 scenario; run_list.py skips entries whose target differs
 [[groups]]
 name = "all"
-expected_count = 522
+expected_count = 524
 tests = [
   "aou_attr_test.attr_excl-1.remote_max_burst-1.4xmix4211-sp128",
   "aou_small_size_test",
@@ -805,6 +805,8 @@ tests = [
   "aou_mrp_test.remote_rp_count-4",
   "aou_mrp_test.remote_rp_count-3",
   "aou_mrp_test.remote_rp_count-1.rp_map_pct-100.4x512-sp64",
+  "aou_mrp_test.rp_map-181.4x512-sp64",
+  "aou_mrp_test.rp_map-181.qos-1.4x512-sp64",
   "aou_mrp_test.remote_rp_count-2.rp_map_pct-100.4xmix4211-sp128",
   "aou_mrp_test.remote_rp_count-3.rp_map_pct-100.4xmix2144-sp64",
   "aou_mrp_test.remote_rp_count-2.rp_map_pct-100.3x512-sp64",

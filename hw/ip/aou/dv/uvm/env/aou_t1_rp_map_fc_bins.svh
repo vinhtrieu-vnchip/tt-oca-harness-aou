@@ -31,3 +31,14 @@
 `define AOU_T1_RPMAP_FC_WIDTH(B) \
   `B``_IGN(no_group, 0, 0) `B``_BIN(same_width, 1, 1) `B``_BIN(mixed_width, 2, 2)
 `define AOU_T1_RPMAP_FC_WIDE(B) `B``_IGN(no, 0, 0) `B``_BIN(wider_port_on_lane, 1, 1)
+// cg_rp_map_arb, one sample per AW or AR grant on a merge group (MAS 3.10.4):
+// the arbitration mode, the ports on the lane, how many ports of the lane
+// presented the channel in that cycle, and the granted source port.
+// cg_rp_map_owner, one sample per AW grant that follows a completed write on
+// the lane: the port that owned the completed write and the next owner.
+`define AOU_T1_RPMAP_FC_ARB_MODE(B) \
+  `B``_BIN(rr, 0, 0) `B``_BIN(mode3, 3, 3)
+`define AOU_T1_RPMAP_FC_ARB_PORTS(B) \
+  `B``_BIN(two, 2, 2) `B``_BIN(three, 3, 3) `B``_BIN(four, 4, 4)
+`define AOU_T1_RPMAP_FC_ARB_CONT(B) `B``_BIN(one, 1, 1) `B``_BIN(two, 2, 2) `B``_BIN(more, 3, 4)
+`define AOU_T1_RPMAP_FC_ARB_PORT(B) `B``_VALS(port, 0, 3)

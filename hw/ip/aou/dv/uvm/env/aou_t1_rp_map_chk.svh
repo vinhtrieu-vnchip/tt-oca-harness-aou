@@ -37,8 +37,31 @@
 // is matched, when the port's response arrives first with no early write
 // response possible (a request the DUT answered itself), or on a reset.
 //
+// On a merge group (MAS 3.10.4), from the same accepted handshakes:
+//   FEAT-R31: its writes are serialised: while a port's AW is the group's
+//             owner and its W beats have not reached WLAST, no other AW of the
+//             group is accepted.
+//   FEAT-R32: W beats of the group come only from the AW owner; a beat with no
+//             owner is accepted by no port that was granted an AW.
+//   FEAT-R33: the owner's ownership ends exactly on its WLAST, on the beat
+//             AWLEN+1 of its AW, not early or late.
+//   FEAT-R34: ARB_MODE 0 or 3 (round-robin): a port is not granted twice in a
+//             row while another port of the group presents the same channel
+//             (MAS 3.2.1 Figure 5, the scheme 3.10.4 reuses).
+//   FEAT-R36: ARB_MODE 1 (Port QoS): while the granted port has waited less
+//             than the starvation timer's threshold, no port of the group with
+//             a strictly lower tier is granted on a channel a higher tier
+//             presents (MAS 3.2.1's High -> Normal -> Low order, reused by
+//             3.10.4). The rule is disabled once the granted port has waited
+//             long enough to have been promoted.
+// No latency or service interval is checked: 3.2.1 bounds a wait only through
+// PRIOR_TIMER, whose promotion also depends on the implementation's prescaler
+// phase. Which of several same-tier ports wins, and whether AW or AR goes
+// first, are left open.
+//
 // Coverage: cg_rp_map_req per request, cg_rp_map_cfg per mapping that carried
-// traffic (aou_t1_rp_map_fc_bins.svh).
+// traffic, cg_rp_map_arb per merge-group grant, cg_rp_map_owner per change of
+// write owner (aou_t1_rp_map_fc_bins.svh).
 `uvm_analysis_imp_decl(_rpm_dut)
 
 class aou_t1_rp_map_chk extends uvm_component;
@@ -83,6 +106,25 @@ class aou_t1_rp_map_chk extends uvm_component;
   int unsigned n_merged[2];
   int unsigned n_bad;
 
+  // Merge-group arbitration and write serialization (MAS 3.10.4).
+  protected int            arb_owner[AOU_RP_MAX];    // write owner per lane, -1 none
+  protected int unsigned   arb_left[AOU_RP_MAX];     // beats still owed by the owner
+  protected int unsigned   arb_total[AOU_RP_MAX];    // beats of the owner's AW
+  protected int unsigned   arb_last[AOU_RP_MAX][2];  // last granted port per lane, channel
+  protected int            arb_prev[AOU_RP_MAX];     // port of the last completed write
+  protected int unsigned   arb_mode;
+  protected int unsigned   arb_prior[AOU_RP_MAX];     // Port QoS tier per port, 3 high
+  protected int unsigned   arb_wait[AOU_RP_MAX][2];   // cycles presented, not granted
+  protected longint unsigned arb_lim;                 // cycles before promotion is possible
+  int unsigned n_arb_g[2];
+  int unsigned n_arb_merged;
+  int unsigned n_arb_cont;
+  int unsigned n_serials;
+  int unsigned n_whs;
+  bit require_merge_observation = 1'b0;
+  protected bit seen_arb_source[AOU_RP_MAX];
+  protected bit seen_write_source[AOU_RP_MAX];
+
   protected int cv_dir;
   protected int cv_port;
   protected int cv_lane;
@@ -95,6 +137,12 @@ class aou_t1_rp_map_chk extends uvm_component;
   protected uvm_reg_data_t cov_map = '1;
   protected uvm_reg_data_t cov_dest = '1;
   protected int unsigned   cov_epoch = '1;
+  protected int cv_arb_mode;
+  protected int cv_arb_ports;
+  protected int cv_arb_cont;
+  protected int cv_arb_port;
+  protected int cv_arb_owner;
+  protected int cv_arb_next;
 
   covergroup cg_rp_map_req;
     cp_dir: coverpoint cv_dir {
@@ -134,6 +182,34 @@ class aou_t1_rp_map_chk extends uvm_component;
   endgroup
   aou_fc_group fc_cfg;
 
+  covergroup cg_rp_map_arb;
+    cp_mode: coverpoint cv_arb_mode {
+      `AOU_T1_RPMAP_FC_ARB_MODE(AOU_FC_CG)
+    }
+    cp_ports: coverpoint cv_arb_ports {
+      `AOU_T1_RPMAP_FC_ARB_PORTS(AOU_FC_CG)
+    }
+    cp_contend: coverpoint cv_arb_cont {
+      `AOU_T1_RPMAP_FC_ARB_CONT(AOU_FC_CG)
+    }
+    cp_winner: coverpoint cv_arb_port {
+      `AOU_T1_RPMAP_FC_ARB_PORT(AOU_FC_CG)
+    }
+    x_mode_winner: cross cp_mode, cp_winner;
+  endgroup
+  aou_fc_group fc_arb;
+
+  covergroup cg_rp_map_owner;
+    cp_owner: coverpoint cv_arb_owner {
+      `AOU_T1_RPMAP_FC_ARB_PORT(AOU_FC_CG)
+    }
+    cp_next: coverpoint cv_arb_next {
+      `AOU_T1_RPMAP_FC_ARB_PORT(AOU_FC_CG)
+    }
+    x_owner_next: cross cp_owner, cp_next;
+  endgroup
+  aou_fc_group fc_owner;
+
   function new(string name, uvm_component parent);
     aou_fc_db db;
     aou_fc_point p;
@@ -143,6 +219,13 @@ class aou_t1_rp_map_chk extends uvm_component;
     rem_msg_imp = new("rem_msg_imp", this);
     cg_rp_map_req = new();
     cg_rp_map_cfg = new();
+    cg_rp_map_arb = new();
+    cg_rp_map_owner = new();
+    foreach (arb_owner[l]) begin
+      arb_owner[l] = -1;
+      arb_prev[l] = -1;
+    end
+    foreach (arb_last[l, d]) arb_last[l][d] = '1;
     db = aou_fc_db::get();
     fc_req = db.group("env.cg_rp_map_req", fresh);
     if (fresh) begin
@@ -162,6 +245,25 @@ class aou_t1_rp_map_chk extends uvm_component;
       p = fc_cfg.cp("cp_wide"); `AOU_T1_RPMAP_FC_WIDE(AOU_FC_REG)
       void'(fc_cfg.add_cross("x_pair_merge", "cp_pair cp_merge"));
     end
+    fc_arb = db.group("env.cg_rp_map_arb", fresh);
+    if (fresh) begin
+      p = fc_arb.cp("cp_mode"); `AOU_T1_RPMAP_FC_ARB_MODE(AOU_FC_REG)
+      p = fc_arb.cp("cp_ports"); `AOU_T1_RPMAP_FC_ARB_PORTS(AOU_FC_REG)
+      p = fc_arb.cp("cp_contend"); `AOU_T1_RPMAP_FC_ARB_CONT(AOU_FC_REG)
+      p = fc_arb.cp("cp_winner"); `AOU_T1_RPMAP_FC_ARB_PORT(AOU_FC_REG)
+      void'(fc_arb.add_cross("x_mode_winner", "cp_mode cp_winner"));
+      fc_arb.plan("12.22", "cp_ports", "three");
+      fc_arb.plan("12.22", "cp_contend", "two|more");
+      fc_arb.plan("12.22", "cp_winner", "port[0]|port[1]|port[2]");
+      fc_arb.plan("12.22", "cp_mode", "rr");
+    end
+    fc_owner = db.group("env.cg_rp_map_owner", fresh);
+    if (fresh) begin
+      p = fc_owner.cp("cp_owner"); `AOU_T1_RPMAP_FC_ARB_PORT(AOU_FC_REG)
+      p = fc_owner.cp("cp_next"); `AOU_T1_RPMAP_FC_ARB_PORT(AOU_FC_REG)
+      void'(fc_owner.add_cross("x_owner_next", "cp_owner cp_next"));
+      fc_owner.plan("12.22", "x_owner_next", "port[0],port[1]");
+    end
   endfunction
 
   // ---- The mapping, from the mirror -------------------------------------
@@ -178,16 +280,44 @@ class aou_t1_rp_map_chk extends uvm_component;
     end
     m = rm.asymmetric_rp_proc_con.get_mirrored_value();
     d = rm.dest_rp.get_mirrored_value();
-    if (m == map_raw && d == dest_raw) return;
-    map_raw = m;
-    dest_raw = d;
-    en = m[0] && n_rp >= 2;
-    foreach (lane_q[x]) begin
-      lane_q[x] = en ? int'(m[1 + 2 * x +: 2]) : x;
-      dest_q[x] = int'(d[4 * x +: 2]);
-      on_lane[x] = 0;
+    if (m != map_raw || d != dest_raw) begin
+      map_raw = m;
+      dest_raw = d;
+      en = m[0] && n_rp >= 2;
+      foreach (lane_q[x]) begin
+        lane_q[x] = en ? int'(m[1 + 2 * x +: 2]) : x;
+        dest_q[x] = int'(d[4 * x +: 2]);
+        on_lane[x] = 0;
+      end
+      for (int unsigned x = 0; x < n_rp; x++) on_lane[lane_q[x]]++;
     end
-    for (int unsigned x = 0; x < n_rp; x++) on_lane[lane_q[x]]++;
+    decode_arb();
+  endfunction
+
+  // PRIOR_RP_AXI selects the merge group's arbitration scheme (MAS 3.10.4
+  // uses the TX core's fields for its first stage): round-robin (FEAT-R34)
+  // and Port QoS (FEAT-R36). The tier of a port is RPn_PRIOR, where 0 reads
+  // as 1 (Low). PRIOR_TIMER bounds how long a request waits before promotion,
+  // so a strict-tier grant is only a violation while the granted port has
+  // waited less than THRESHOLD x (RESOLUTION + 1) cycles.
+  protected function void decode_arb();
+    uvm_reg_data_t pv;
+    uvm_reg_data_t t;
+    int unsigned   pri;
+    if (rm == null) return;
+    pv = rm.prior_rp_axi.get_mirrored_value();
+    arb_mode = int'(pv[1:0]);
+    foreach (arb_prior[r]) begin
+      if (r >= n_rp) begin
+        arb_prior[r] = 0;
+        continue;
+      end
+      pri = int'(pv[4 + 4 * r +: 2]);
+      arb_prior[r] = (pri == 0) ? 1 : pri;
+    end
+    t = rm.prior_timer.get_mirrored_value();
+    arb_lim = (t[15:0] == 16'h0) ? 0 :
+              longint'(t[15:0]) * (longint'(t[31:16]) + 1);
   endfunction
 
   function bit enabled();
@@ -399,35 +529,180 @@ class aou_t1_rp_map_chk extends uvm_component;
     return r;
   endfunction
 
+  // One sample per core cycle for every port: the merge-group checks compare
+  // the ports of one lane in the same cycle.
   task run_phase(uvm_phase phase);
-    foreach (s_vif[x]) begin
-      automatic int unsigned xx = x;
-      fork
-        watch(xx);
-      join_none
+    if (s_vif.size() == 0) return;
+    forever begin
+      @(s_vif[0].mon_cb);
+      decode();
+      for (int unsigned x = 0; x < s_vif.size() && x < AOU_RP_MAX; x++) watch(x);
     end
   endtask
 
-  protected task watch(int unsigned x);
-    forever begin
-      @(s_vif[x].mon_cb);
-      if (s_vif[x].mon_cb.resetn !== 1'b1) begin
-        flush_port(x);
-        continue;
-      end
-      if (s_vif[x].mon_cb.awvalid === 1'b1 && s_vif[x].mon_cb.awready === 1'b1)
-        pend[x][0].push_back(req_of(s_vif[x].mon_cb.awid, s_vif[x].mon_cb.awaddr,
-                                    s_vif[x].mon_cb.awlen, s_vif[x].mon_cb.awsize));
-      if (s_vif[x].mon_cb.arvalid === 1'b1 && s_vif[x].mon_cb.arready === 1'b1)
-        pend[x][1].push_back(req_of(s_vif[x].mon_cb.arid, s_vif[x].mon_cb.araddr,
-                                    s_vif[x].mon_cb.arlen, s_vif[x].mon_cb.arsize));
-      if (s_vif[x].mon_cb.bvalid === 1'b1 && s_vif[x].mon_cb.bready === 1'b1)
-        answered(x, 1'b0, s_vif[x].mon_cb.bid);
-      if (s_vif[x].mon_cb.rvalid === 1'b1 && s_vif[x].mon_cb.rready === 1'b1 &&
-          s_vif[x].mon_cb.rlast === 1'b1)
-        answered(x, 1'b1, s_vif[x].mon_cb.rid);
+  protected function void watch(int unsigned x);
+    bit g_aw;
+    bit g_ar;
+    if (s_vif[x].mon_cb.resetn !== 1'b1) begin
+      flush_port(x);
+      for (int d = 0; d < 2; d++) arb_wait[x][d] = 0;
+      return;
     end
-  endtask
+    g_aw = (s_vif[x].mon_cb.awvalid === 1'b1 && s_vif[x].mon_cb.awready === 1'b1);
+    g_ar = (s_vif[x].mon_cb.arvalid === 1'b1 && s_vif[x].mon_cb.arready === 1'b1);
+    if (g_aw) begin
+      pend[x][0].push_back(req_of(s_vif[x].mon_cb.awid, s_vif[x].mon_cb.awaddr,
+                                  s_vif[x].mon_cb.awlen, s_vif[x].mon_cb.awsize));
+      arb_aw(x, s_vif[x].mon_cb.awlen);
+    end
+    if (g_ar) begin
+      pend[x][1].push_back(req_of(s_vif[x].mon_cb.arid, s_vif[x].mon_cb.araddr,
+                                  s_vif[x].mon_cb.arlen, s_vif[x].mon_cb.arsize));
+      arb_grant(x, 1'b1);
+    end
+    if (s_vif[x].mon_cb.wvalid === 1'b1 && s_vif[x].mon_cb.wready === 1'b1)
+      arb_w(x, s_vif[x].mon_cb.wlast === 1'b1);
+    if (s_vif[x].mon_cb.bvalid === 1'b1 && s_vif[x].mon_cb.bready === 1'b1)
+      answered(x, 1'b0, s_vif[x].mon_cb.bid);
+    if (s_vif[x].mon_cb.rvalid === 1'b1 && s_vif[x].mon_cb.rready === 1'b1 &&
+        s_vif[x].mon_cb.rlast === 1'b1)
+      answered(x, 1'b1, s_vif[x].mon_cb.rid);
+    // Port QoS waits: how long each channel's request has been presented
+    // without being granted. FEAT-R36 disables itself once this reaches the
+    // promotion threshold, so the count only has to be right below it.
+    for (int d = 0; d < 2; d++) begin
+      if (d == 0 ? g_aw : g_ar) arb_wait[x][d] = 0;
+      else if ((d == 0 ? s_vif[x].mon_cb.awvalid : s_vif[x].mon_cb.arvalid) === 1'b1 &&
+               arb_wait[x][d] < '1) arb_wait[x][d]++;
+    end
+  endfunction
+
+  // ---- Merge-group arbitration and write serialization (MAS 3.10.4) -----
+  // AW accepted at port x: it takes the lane's write ownership unless the
+  // previous owner has not reached WLAST (FEAT-R31), then competes for the
+  // channel (FEAT-R34).
+  protected function void arb_aw(int unsigned x, bit [7:0] len);
+    int unsigned l;
+    if (!en || x >= n_rp) return;
+    l = lane_q[x];
+    if (on_lane[l] < 2) return;
+    n_arb_merged++;
+    aou_rule_log::check("FEAT-R31", get_type_name());
+    aou_rule_log::check("FEAT-R33", get_type_name());
+    if (arb_owner[l] >= 0)
+      bad("FEAT-R31", $sformatf({"port %0d's AW accepted on lane %0d while port %0d's write ",
+                                 "still owes %0d of %0d W beats"}, x, l, arb_owner[l], arb_left[l],
+                                arb_total[l]));
+    // A violation cannot be repaired; taking the new AW keeps one report per
+    // violation instead of one per following beat.
+    arb_owner[l] = int'(x);
+    arb_left[l] = int'(len) + 1;
+    arb_total[l] = int'(len) + 1;
+    arb_grant(x, 1'b0);
+  endfunction
+
+  // One W beat at port x on its lane.
+  protected function void arb_w(int unsigned x, bit last);
+    int unsigned l;
+    if (!en || x >= n_rp) return;
+    l = lane_q[x];
+    if (on_lane[l] < 2) return;
+    n_whs++;
+    aou_rule_log::check("FEAT-R32", get_type_name());
+    aou_rule_log::check("FEAT-R33", get_type_name());
+    if (arb_owner[l] < 0) begin
+      bad("FEAT-R32", $sformatf("W beat from port %0d on lane %0d with no AW owner", x, l));
+      return;
+    end
+    if (arb_owner[l] != int'(x)) begin
+      bad("FEAT-R32", $sformatf("W beat from port %0d on lane %0d, whose AW owner is port %0d",
+                                x, l, arb_owner[l]));
+      return;
+    end
+    if (arb_left[l] == 0) begin
+      bad("FEAT-R33", $sformatf("W beat from port %0d on lane %0d after all %0d beats", x, l,
+                                arb_total[l]));
+      arb_owner[l] = -1;
+      return;
+    end
+    arb_left[l]--;
+    if (arb_left[l] == 0 && !last) begin
+      bad("FEAT-R33", $sformatf({"port %0d's AW on lane %0d covers %0d beats but WLAST was not ",
+                                 "on the last"}, x, l, arb_total[l]));
+      arb_owner[l] = -1;
+      return;
+    end
+    if (arb_left[l] != 0 && last) begin
+      bad("FEAT-R33", $sformatf("WLAST from port %0d on lane %0d after %0d of %0d beats", x, l,
+                                arb_total[l] - arb_left[l], arb_total[l]));
+      arb_owner[l] = -1;
+      return;
+    end
+    if (last) begin
+      arb_owner[l] = -1;
+      arb_prev[l] = int'(x);
+      n_serials++;
+      seen_write_source[x] = 1'b1;
+    end
+  endfunction
+
+  // Ports of lane l presenting the channel this cycle.
+  protected function int unsigned presenting(int unsigned l, bit rd);
+    int n = 0;
+    for (int unsigned x = 0; x < n_rp && x < s_vif.size(); x++) begin
+      if (lane_q[x] != l) continue;
+      if (rd ? s_vif[x].mon_cb.arvalid === 1'b1 : s_vif[x].mon_cb.awvalid === 1'b1) n++;
+    end
+    return n;
+  endfunction
+
+  // A grant of the channel to port x on its lane (FEAT-R34).
+  protected function void arb_grant(int unsigned x, bit rd);
+    int unsigned l = lane_q[x];
+    int unsigned cont;
+    if (on_lane[l] < 2) return;
+    n_arb_g[rd]++;
+    seen_arb_source[x] = 1'b1;
+    cont = presenting(l, rd);
+    if (cont > 1) n_arb_cont++;
+    if (arb_mode == 0 || arb_mode == 3) begin
+      aou_rule_log::check("FEAT-R34", get_type_name());
+      if (arb_last[l][rd] == x && cont > 1)
+        bad("FEAT-R34", $sformatf(
+            {"port %0d granted twice in a row on lane %0d's %s while %0d ports of the lane ",
+             "present a request (ARB_MODE %0d)"}, x, l, rd ? "AR" : "AW", cont, arb_mode));
+    end
+    if (arb_mode == 1 && arb_lim > 0) begin
+      aou_rule_log::check("FEAT-R36", get_type_name());
+      if (longint'(arb_wait[x][rd]) < arb_lim)
+        for (int unsigned y = 0; y < n_rp && y < s_vif.size(); y++) begin
+          if (y == x || lane_q[y] != l) continue;
+          if ((rd ? s_vif[y].mon_cb.arvalid : s_vif[y].mon_cb.awvalid) !== 1'b1) continue;
+          if (arb_prior[y] <= arb_prior[x]) continue;
+          bad("FEAT-R36", $sformatf(
+              {"port %0d (tier %0d) granted on lane %0d's %s while port %0d (tier %0d) ",
+               "presents and the promotion timer cannot have promoted it (wait %0d < %0d)"},
+              x, arb_prior[x], l, rd ? "AR" : "AW", y, arb_prior[y], arb_wait[x][rd], arb_lim));
+        end
+    end
+    arb_last[l][rd] = x;
+    sample_arb(x, l, rd, cont);
+  endfunction
+
+  protected function void sample_arb(int unsigned x, int unsigned l, bit rd, int unsigned cont);
+    cv_arb_mode = int'(arb_mode);
+    cv_arb_ports = int'(on_lane[l]);
+    cv_arb_cont = int'(cont);
+    cv_arb_port = int'(x);
+    cg_rp_map_arb.sample();
+    fc_arb.sample(cv_arb_mode, cv_arb_ports, cv_arb_cont, cv_arb_port);
+    if (rd || arb_prev[l] < 0) return;
+    cv_arb_owner = arb_prev[l];
+    cv_arb_next = int'(x);
+    arb_prev[l] = -1;
+    cg_rp_map_owner.sample();
+    fc_owner.sample(cv_arb_owner, cv_arb_next);
+  endfunction
 
   protected function void flush_port(int unsigned x);
     foreach (pend[x][rd]) begin
@@ -435,6 +710,18 @@ class aou_t1_rp_map_chk extends uvm_component;
       w_cnt[x][rd].delete();
       w_orig[x][rd].delete();
       sent[x][rd].delete();
+    end
+    if (x >= AOU_RP_MAX) return;
+    if (en) begin
+      int unsigned l = lane_q[x];
+      // All S-port resetn pins share the core reset. Flush the lane's shared
+      // state so a pre-reset owner/grant cannot constrain post-reset checks.
+      arb_owner[l] = -1;
+      arb_left[l] = 0;
+      arb_total[l] = 0;
+      arb_last[l][0] = '1;
+      arb_last[l][1] = '1;
+      arb_prev[l] = -1;
     end
   endfunction
 
@@ -494,5 +781,32 @@ class aou_t1_rp_map_chk extends uvm_component;
                "%0d ReadReq (%0d merged) matched to their ports, %0d errors"},
               en ? "enabled" : "disabled", map_raw, dest_raw, n_req[0], n_merged[0], n_req[1],
               n_merged[1], n_bad), UVM_LOW)
+    `uvm_info(get_type_name(), $sformatf(
+              {"merge groups: %0d AW and %0d AR grants (%0d merged, %0d contended), %0d W beats, ",
+              "%0d completed writes, ARB_MODE %0d"},
+              n_arb_g[0], n_arb_g[1], n_arb_merged, n_arb_cont, n_whs, n_serials, arb_mode),
+              UVM_LOW)
+  endfunction
+
+  // A deterministic +rp_map scenario declares that a merge group, contested
+  // grants, multiple winners and writes from multiple source ports are part of
+  // the test intent. Keep this assertion conditional: the randomized mapping
+  // used by other tests is allowed to produce only singletons.
+  function void check_phase(uvm_phase phase);
+    int unsigned n_winners = 0;
+    int unsigned n_writers = 0;
+    super.check_phase(phase);
+    if (!require_merge_observation) return;
+    foreach (seen_arb_source[x]) if (seen_arb_source[x]) n_winners++;
+    foreach (seen_write_source[x]) if (seen_write_source[x]) n_writers++;
+    aou_rule_log::check("FEAT-R35", get_type_name());
+    if (n_arb_merged == 0 || n_arb_cont == 0 || n_serials == 0 ||
+        n_winners < 2 || n_writers < 2) begin
+      aou_rule_log::fire("FEAT-R35", get_type_name());
+      `uvm_error(get_type_name(), $sformatf(
+          {"FEAT-R35: deterministic merge scenario not exercised: merged %0d, contended %0d, ",
+           "writes %0d, arbitration sources %0d, write sources %0d"},
+          n_arb_merged, n_arb_cont, n_serials, n_winners, n_writers))
+    end
   endfunction
 endclass

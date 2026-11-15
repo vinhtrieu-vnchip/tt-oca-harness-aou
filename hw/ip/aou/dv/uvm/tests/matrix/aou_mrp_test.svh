@@ -16,10 +16,33 @@ class aou_mrp_test extends aou_dp_base_test;
     vseq_type = "aou_mrp_vseq";
   endfunction
 
-  function void set_knobs();
-    k.dir = AOU_T1_BOTH_DIRS;
-    k.lens = '{0, 1, 3, 7, 15};
-    k.n = 40;
+  // Port QoS on a merge group (FEAT-R36): +mrp_arb_mode programs ARB_MODE and
+  // +mrp_priors one 2-bit RPn_PRIOR per port, so the merged ports can be given
+  // different tiers. +mrp_timer_threshold/resolution program PRIOR_TIMER; with
+  // the maximum threshold no promotion is possible inside a scenario, which is
+  // what makes the strict-tier order assertable.
+  function void configure();
+    int unsigned am;
+    int unsigned pv;
+    int unsigned th;
+    int unsigned rs;
+    bit has_am;
+    bit has_pv;
+    bit has_th;
+    bit has_rs;
+    has_am = $value$plusargs("mrp_arb_mode=%d", am);
+    has_pv = $value$plusargs("mrp_priors=%h", pv);
+    has_th = $value$plusargs("mrp_timer_threshold=%d", th);
+    has_rs = $value$plusargs("mrp_timer_resolution=%d", rs);
+    if (has_am || has_pv || has_th || has_rs) begin
+      if (k.feat == null) k.feat = aou_t1_feature_cfg::type_id::create("feat");
+      if (has_am) k.feat.arb_mode = int'(am);
+      if (has_pv)
+        foreach (k.feat.rp_prior[r]) k.feat.rp_prior[r] = int'(pv[2 * r +: 2]);
+      if (has_th) k.feat.timer_threshold = int'(th);
+      if (has_rs) k.feat.timer_resolution = int'(rs);
+    end
+    super.configure();
   endfunction
 
   // crd_rr runs remote-die requests only.
@@ -35,10 +58,18 @@ class aou_mrp_test extends aou_dp_base_test;
   endfunction
 
   function void connect_phase(uvm_phase phase);
+    int unsigned fixed_map;
+    int unsigned require_merge;
     super.connect_phase(phase);
     foreach (env.s_mgr[r]) env.s_mgr[r].ap.connect(chk.loc_fifo.analysis_export);
     env.rmgr.ap.connect(chk.rem_fifo.analysis_export);
     env.l3.ap_rx_msg.connect(chk.dut_fifo.analysis_export);
     chk.rp_map = env.rp_map;
+    if ($value$plusargs("rp_map=%h", fixed_map) &&
+        $value$plusargs("rp_map_require_merge=%d", require_merge) && require_merge != 0) begin
+      if (fixed_map != 32'h181)
+        `uvm_fatal(get_type_name(), "+rp_map_require_merge is defined for +rp_map=181")
+      env.rp_map.require_merge_observation = 1'b1;
+    end
   endfunction
 endclass
