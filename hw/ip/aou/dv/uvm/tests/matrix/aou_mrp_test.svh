@@ -51,6 +51,24 @@ class aou_mrp_test extends aou_dp_base_test;
     if ($value$plusargs("mrp_scn=%s", scn) && scn == "crd_rr") min_l2r = 0;
   endfunction
 
+  // Negative control (plan 12.22): with +rp_map_neg the scenario runs as
+  // usual and then the merge-group checker feeds its arbitration state machine
+  // one illegal sequence per rule. Exactly one report per rule is expected,
+  // and any other error still fails the run.
+  task run_phase(uvm_phase phase);
+    int unsigned neg;
+    neg = $value$plusargs("rp_map_neg=%d", neg) ? neg : 0;
+    if (neg != 0) begin
+      env.expects.add("FEAT-R31", 1, 1);
+      env.expects.add("FEAT-R32", 1, 1);
+      env.expects.add("FEAT-R33", 1, 1);
+      env.expects.add("FEAT-R34", 1, 1);
+      env.expects.add("FEAT-R36", 1, 1);
+    end
+    super.run_phase(phase);
+    if (neg != 0) env.rp_map.neg_selftest();
+  endtask
+
   function void build_phase(uvm_phase phase);
     super.build_phase(phase);
     chk = aou_mrp_chk::type_id::create("chk", this);

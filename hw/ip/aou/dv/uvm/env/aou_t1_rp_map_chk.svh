@@ -116,6 +116,11 @@ class aou_t1_rp_map_chk extends uvm_component;
   protected int unsigned   arb_prior[AOU_RP_MAX];     // Port QoS tier per port, 3 high
   protected int unsigned   arb_wait[AOU_RP_MAX][2];   // cycles presented, not granted
   protected longint unsigned arb_lim;                 // cycles before promotion is possible
+  // Negative control (plan 12.22): the selftest replaces the pin sample with a
+  // mask, so the arbitration rules can be driven with illegal sequences while
+  // no DUT is involved.
+  protected bit                  neg_mode;
+  protected bit [AOU_RP_MAX-1:0] neg_present[2];
   int unsigned n_arb_g[2];
   int unsigned n_arb_merged;
   int unsigned n_arb_cont;
@@ -400,6 +405,96 @@ class aou_t1_rp_map_chk extends uvm_component;
     if (m.msg_type inside {AOU_MT_WREQ, AOU_MT_RREQ}) resolve(m, x, orig);
   endfunction
 
+  // ---- Negative control (plan 12.22) -----------------------------------
+  protected function void neg_reset();
+    foreach (arb_owner[i]) begin
+      arb_owner[i] = -1;
+      arb_left[i] = 0;
+      arb_total[i] = 0;
+      arb_prev[i] = -1;
+    end
+    for (int unsigned i = 0; i < AOU_RP_MAX; i++) begin
+      for (int unsigned d = 0; d < 2; d++) begin
+        arb_last[i][d] = '1;
+        arb_wait[i][d] = 0;
+      end
+      neg_present[0][i] = 1'b0;
+      neg_present[1][i] = 1'b0;
+    end
+  endfunction
+
+  // Feeds the arbitration state machine the sequence each rule forbids, one
+  // case per rule, so a rule that can no longer fire is visible. Only checker
+  // state is used: no DUT, no port sample, no RTL. Each case reports once
+  // through bad(), and a caller that expects exactly one report per rule turns
+  // a silent rule into a failed selftest.
+  function void neg_selftest();
+    int unsigned      l;
+    int unsigned      a;
+    int unsigned      b;
+    int unsigned      mode_save;
+    longint unsigned  lim_save;
+    int unsigned      pri_save[AOU_RP_MAX];
+    if (!en || n_rp < 3) begin
+      `uvm_info(get_type_name(), "negative control needs an enabled merge group", UVM_LOW)
+      return;
+    end
+    l = lane_q[0];
+    a = 0;
+    b = 1;
+    for (int unsigned x = 1; x < n_rp; x++)
+      if (on_lane[lane_q[x]] >= 2) begin
+        l = lane_q[x];
+        a = x;
+        break;
+      end
+    for (int unsigned x = a + 1; x < n_rp; x++) if (lane_q[x] == l) b = x;
+    if (on_lane[l] < 2 || lane_q[b] != l || a == b) begin
+      `uvm_info(get_type_name(), "negative control found no merged pair", UVM_LOW)
+      return;
+    end
+    mode_save = arb_mode;
+    lim_save = arb_lim;
+    foreach (arb_prior[i]) pri_save[i] = arb_prior[i];
+    neg_mode = 1'b1;
+    // FEAT-R31: another port's AW while the owner's write is not finished.
+    neg_reset();
+    neg_present[0][b] = 1'b1;
+    arb_aw(a, 8'd1);
+    arb_aw(b, 8'd1);
+    // FEAT-R32: a W beat from a port that was not granted the AW.
+    neg_reset();
+    arb_aw(a, 8'd1);
+    arb_w(b, 1'b0);
+    // FEAT-R33: WLAST while the AW still owes beats (an AWLEN of 2 covers 3).
+    neg_reset();
+    arb_aw(a, 8'd2);
+    arb_w(a, 1'b0);
+    arb_w(a, 1'b1);
+    // FEAT-R34: the same port granted twice while another presents.
+    neg_reset();
+    arb_mode = 0;
+    neg_present[0][a] = 1'b1;
+    neg_present[0][b] = 1'b1;
+    arb_last[l][0] = int'(b);
+    arb_grant(b, 1'b0);
+    // FEAT-R36: a lower tier granted while a higher tier presents, with the
+    // promotion timer unable to have promoted it.
+    neg_reset();
+    arb_mode = 1;
+    arb_lim = 1000;
+    arb_prior[a] = 3;
+    arb_prior[b] = 1;
+    neg_present[0][a] = 1'b1;
+    arb_wait[b][0] = 0;
+    arb_grant(b, 1'b0);
+    neg_mode = 1'b0;
+    arb_mode = mode_save;
+    arb_lim = lim_save;
+    foreach (arb_prior[i]) arb_prior[i] = pri_save[i];
+    neg_reset();
+  endfunction
+
   protected function void bad(string rule, string msg);
     n_bad++;
     aou_rule_log::fire(rule, get_type_name());
@@ -646,12 +741,20 @@ class aou_t1_rp_map_chk extends uvm_component;
     end
   endfunction
 
+  // Whether port y presents channel rd. The selftest supplies the answer
+  // instead of sampling the port pins.
+  protected function bit port_presents(int unsigned y, bit rd);
+    if (neg_mode) return (y < AOU_RP_MAX) && (neg_present[rd][y] === 1'b1);
+    if (y >= s_vif.size()) return 1'b0;
+    return (rd ? s_vif[y].mon_cb.arvalid : s_vif[y].mon_cb.awvalid) === 1'b1;
+  endfunction
+
   // Ports of lane l presenting the channel this cycle.
   protected function int unsigned presenting(int unsigned l, bit rd);
     int n = 0;
-    for (int unsigned x = 0; x < n_rp && x < s_vif.size(); x++) begin
+    for (int unsigned x = 0; x < n_rp && x < AOU_RP_MAX; x++) begin
       if (lane_q[x] != l) continue;
-      if (rd ? s_vif[x].mon_cb.arvalid === 1'b1 : s_vif[x].mon_cb.awvalid === 1'b1) n++;
+      if (port_presents(x, rd)) n++;
     end
     return n;
   endfunction
@@ -675,9 +778,9 @@ class aou_t1_rp_map_chk extends uvm_component;
     if (arb_mode == 1 && arb_lim > 0) begin
       aou_rule_log::check("FEAT-R36", get_type_name());
       if (longint'(arb_wait[x][rd]) < arb_lim)
-        for (int unsigned y = 0; y < n_rp && y < s_vif.size(); y++) begin
+        for (int unsigned y = 0; y < n_rp; y++) begin
           if (y == x || lane_q[y] != l) continue;
-          if ((rd ? s_vif[y].mon_cb.arvalid : s_vif[y].mon_cb.awvalid) !== 1'b1) continue;
+          if (!port_presents(int'(y), rd)) continue;
           if (arb_prior[y] <= arb_prior[x]) continue;
           bad("FEAT-R36", $sformatf(
               {"port %0d (tier %0d) granted on lane %0d's %s while port %0d (tier %0d) ",
@@ -690,6 +793,7 @@ class aou_t1_rp_map_chk extends uvm_component;
   endfunction
 
   protected function void sample_arb(int unsigned x, int unsigned l, bit rd, int unsigned cont);
+    if (neg_mode) return;   // the selftest's synthetic grants are not coverage
     cv_arb_mode = int'(arb_mode);
     cv_arb_ports = int'(on_lane[l]);
     cv_arb_cont = int'(cont);
