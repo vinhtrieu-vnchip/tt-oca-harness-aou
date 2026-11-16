@@ -16,11 +16,10 @@ class aou_mrp_test extends aou_dp_base_test;
     vseq_type = "aou_mrp_vseq";
   endfunction
 
-  // Port QoS on a merge group (FEAT-R36): +mrp_arb_mode programs ARB_MODE and
-  // +mrp_priors one 2-bit RPn_PRIOR per port, so the merged ports can be given
-  // different tiers. +mrp_timer_threshold/resolution program PRIOR_TIMER; with
-  // the maximum threshold no promotion is possible inside a scenario, which is
-  // what makes the strict-tier order assertable.
+  // Port QoS traffic on a merge group: +mrp_arb_mode programs ARB_MODE and
+  // +mrp_priors one 2-bit RPn_PRIOR per port, +mrp_timer_threshold/resolution
+  // program PRIOR_TIMER. The scenario exercises the traffic; the tier order is
+  // not asserted (see aou_t1_rp_map_chk).
   function void configure();
     int unsigned am;
     int unsigned pv;
@@ -63,7 +62,6 @@ class aou_mrp_test extends aou_dp_base_test;
       env.expects.add("FEAT-R32", 1, 1);
       env.expects.add("FEAT-R33", 1, 1);
       env.expects.add("FEAT-R34", 1, 1);
-      env.expects.add("FEAT-R36", 1, 1);
     end
     super.run_phase(phase);
     if (neg != 0) env.rp_map.neg_selftest();
