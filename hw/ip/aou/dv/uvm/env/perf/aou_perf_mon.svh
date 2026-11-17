@@ -102,6 +102,23 @@ class aou_perf_mon extends uvm_component;
   protected string       win_dir;
   protected int          win_wr_pct;
 
+  // Concurrency, report only. The manager's own outstanding set is the
+  // requester's view of the first stage: how many transactions it has put on
+  // the bus and not yet had answered, sampled every clock. Sampling gives the
+  // window's maximum and its time average, which Little's law relates to the
+  // completion rate and the transaction latency. The spacing of the DUT's
+  // request messages and of the link's flits, and the remote responder's
+  // served count, are the same idea at the other stages: an idle or bounded
+  // stage shows up as a gap here before it shows up as a throughput number.
+  aou_axi_mgr_driver       loc_drv[];
+  aou_t1_remote_mgr_driver rem_drv[];
+  protected int unsigned   os_max[2];
+  protected longint        os_sum[2];
+  protected longint        os_n[2];
+  protected int unsigned   srv_wr0;
+  protected int unsigned   srv_rd0;
+  protected bit            msg_req[2][$];
+
   protected string       lines[$];
   protected string       json_win[$];
   int unsigned           n_windows;
@@ -191,6 +208,7 @@ class aou_perf_mon extends uvm_component;
     if (win == "") return;
     msg_t[l].push_back($time);
     msg_kind[l].push_back(m.kind());
+    msg_req[l].push_back(m.is_request());
     msg_g[l].push_back(m.num_granules());
     msg_db[l].push_back(data_bytes(m));
   endfunction
@@ -247,7 +265,7 @@ class aou_perf_mon extends uvm_component;
       forever begin rem_fifo.get(u); take_txn(u, 1); end
       forever begin dut_fifo.get(m); take_dut(m); end
       forever begin tb_fifo.get(q); take_tb(q); end
-      forever begin @(vif.mon_cb); poll_credits(); poll_flits(); end
+      forever begin @(vif.mon_cb); poll_credits(); poll_flits(); poll_outstanding(); end
     join
   endtask
 
@@ -265,6 +283,25 @@ class aou_perf_mon extends uvm_component;
         fl_n[l].push_back(n);
       end
     end
+  endfunction
+
+  // Outstanding transactions of each manager side, sampled once per clock. The
+  // local managers' issued() is the request accepted at the DUT's S port and
+  // not yet answered; the remote managers' outstanding() is the same on the
+  // other side.
+  function void poll_outstanding();
+    int unsigned n;
+    if (win == "") return;
+    n = 0;
+    foreach (loc_drv[r]) n += loc_drv[r].issued();
+    if (n > os_max[0]) os_max[0] = n;
+    os_sum[0] += longint'(n);
+    os_n[0]++;
+    n = 0;
+    foreach (rem_drv[r]) n += rem_drv[r].outstanding();
+    if (n > os_max[1]) os_max[1] = n;
+    os_sum[1] += longint'(n);
+    os_n[1]++;
   endfunction
 
   // Credits the DUT returned since the last poll (in flit headers or CrdtGrant).
@@ -327,6 +364,7 @@ class aou_perf_mon extends uvm_component;
     for (int l = 0; l < 2; l++) begin
       msg_t[l].delete();
       msg_kind[l].delete();
+      msg_req[l].delete();
       msg_g[l].delete();
       msg_db[l].delete();
       fl_t[l].delete();
@@ -336,6 +374,13 @@ class aou_perf_mon extends uvm_component;
     end
     flits_tx0 = l3.model.rx_flits;
     flits_rx0 = l3.model.tx_flits;
+    foreach (os_max[d]) begin
+      os_max[d] = 0;
+      os_sum[d] = 0;
+      os_n[d] = 0;
+    end
+    srv_wr0 = l3.writes_done;
+    srv_rd0 = l3.reads_done;
   endfunction
 
   // Flit counter of link l at time t (the last change at or before t).
@@ -346,6 +391,33 @@ class aou_perf_mon extends uvm_component;
       n = fl_n[l][i];
     end
     return n;
+  endfunction
+
+  // Spacing of a stream of events: how many, and the min/mean/max distance
+  // between consecutive ones. q must be in time order.
+  function void report_gaps(string nm, time q[$]);
+    time         prev = 0;
+    int unsigned n = 0;
+    int unsigned ng = 0;
+    longint      mn = 0;
+    longint      mx = 0;
+    longint      sum = 0;
+    foreach (q[i]) begin
+      if (n > 0) begin
+        longint d = q[i] - prev;
+        sum += d;
+        ng++;
+        if (d > mx) mx = d;
+        if (mn == 0 || d < mn) mn = d;
+      end
+      prev = q[i];
+      n++;
+    end
+    put({win, ".", nm, ".count"}, real'(n));
+    if (ng == 0) return;
+    put({win, ".", nm, ".gap_min"}, real'(mn) / (clk_ns * 1ns));
+    put({win, ".", nm, ".gap_mean"}, real'(sum) / real'(ng) / (clk_ns * 1ns));
+    put({win, ".", nm, ".gap_max"}, real'(mx) / (clk_ns * 1ns));
   endfunction
 
   function real cycles(time t);
@@ -626,6 +698,26 @@ class aou_perf_mon extends uvm_component;
       put({win, ".credit_return.max"}, real'(crd_max) / (clk_ns * 1ns));
     end
     foreach (crd_low[c]) put({win, ".dut_credit_low.", ccn[c]}, real'(crd_low[c]));
+    for (int d = 0; d < 2; d++) begin
+      string side = (d == 0) ? "l2r" : "r2l";
+      if (os_n[d] == 0) continue;
+      put({win, ".outstanding.", side, ".max"}, real'(os_max[d]));
+      put({win, ".outstanding.", side, ".mean"}, real'(os_sum[d]) / real'(os_n[d]));
+    end
+    put({win, ".remote_served.wr"}, real'(l3.writes_done - srv_wr0));
+    put({win, ".remote_served.rd"}, real'(l3.reads_done - srv_rd0));
+    begin
+      time reqt[$];
+      foreach (msg_t[0][i]) if (msg_req[0][i]) reqt.push_back(msg_t[0][i]);
+      report_gaps("req_msgs.l2r", reqt);
+    end
+    // The first entry is the flit count at open(), so the first distance would
+    // be the wait before the window's first flit, not a flit-to-flit gap.
+    for (int l = 0; l < 2; l++) begin
+      time ft[$];
+      for (int i = 1; i < fl_t[l].size(); i++) ft.push_back(fl_t[l][i]);
+      report_gaps(l == 0 ? "flits.l2r" : "flits.r2l", ft);
+    end
     j = $sformatf({"{\"name\": \"%s\", \"scenario\": \"%s\", \"traffic_dir\": \"%s\", ",
                    "\"wr_pct\": %0d, \"t_open\": %s, \"t_close\": %s, \"dir\": {"},
                   win, win_scenario, win_dir, win_wr_pct, jnum(cycles(t_open)),

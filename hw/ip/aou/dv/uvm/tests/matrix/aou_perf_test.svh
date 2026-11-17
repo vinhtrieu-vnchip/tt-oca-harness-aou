@@ -164,6 +164,11 @@ class aou_perf_test extends aou_dp_base_test;
     env.rmgr.ap.connect(mon.rem_fifo.analysis_export);
     env.l3.ap_rx_msg.connect(mon.dut_fifo.analysis_export);
     env.l3.ap_tx_msg.connect(mon.tb_fifo.analysis_export);
+    // Report-only concurrency sampling: the managers' own outstanding sets.
+    mon.loc_drv = new[cfg.n_rp];
+    foreach (env.s_mgr[r]) mon.loc_drv[r] = env.s_mgr[r].drv;
+    mon.rem_drv = new[cfg.n_rp];
+    foreach (env.rmgr.drv[r]) mon.rem_drv[r] = env.rmgr.drv[r];
     mon.res_ap.connect(chk.imp);
     if (rx_lat != null) begin
       rx_lat.l3 = env.l3;
