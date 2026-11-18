@@ -3344,7 +3344,11 @@ AOU-R30 (checker), AOU-R34 (A)
 crd_in_disabled  ReadData credit from B after B's own DeactivateAck
 completed the teardown
 AOU-R29 (checker), AOU-R26 (A)
-The last two keep the deactivation windows honest: ReadData/WriteResp may
+rd_dlen    ReadData1024 for an ARSIZE that needs less, which only the
+receiving model can hold (5.7)
+AOU-R13 (A; not an AOU_FDI_CHECKER rule)
+The two deactivation injections, req_after_dreq and crd_in_disabled, keep
+the deactivation windows honest: ReadData/WriteResp may
 follow one's own DeactivateReq and every credit one's own DeactivateAck
 (v0.8 8.4, MAS 7.3.1), but requests stop at the DeactivateReq and credits
 at DISABLED. B deactivates so that its own DeactivateAck is the last one: it
@@ -3355,7 +3359,7 @@ can report its credits (aou_l3_late_adv_test).
 
 *Procedure.* The class's own `run_phase` (see the file).
 
-*Rules named.* `AOU-R11`, `AOU-R16`, `AOU-R21`, `AOU-R26`, `AOU-R29`, `AOU-R3`, `AOU-R30`, `AOU-R34`, `AOU-R4`, `AOU-R40`, `AOU-R6`, `AOU-R9`
+*Rules named.* `AOU-R11`, `AOU-R13`, `AOU-R16`, `AOU-R21`, `AOU-R26`, `AOU-R29`, `AOU-R3`, `AOU-R30`, `AOU-R34`, `AOU-R4`, `AOU-R40`, `AOU-R6`, `AOU-R9`
 
 *Pass criteria.* The base test's end-of-test checks: scoreboard drained, every declared expectation met, no unexpected `UVM_ERROR`/`UVM_FATAL`, the FDI checker clean; `scripts/check_run.py` judges the log against `expected_fail.yaml`.
 
@@ -3367,6 +3371,7 @@ can report its credits (aou_l3_late_adv_test).
 | `aou_l3_inject_test` |  | 1 |  | 
 | `aou_l3_inject_test.L3_INJECT-req_after_dreq` | `+L3_INJECT=req_after_dreq` | 1 |  | 
 | `aou_l3_inject_test.L3_INJECT-crd_in_disabled` | `+L3_INJECT=crd_in_disabled` | 1 |  | 
+| `aou_l3_inject_test.L3_INJECT-rd_dlen` | `+L3_INJECT=rd_dlen` | 1 |  | 
 |===
 
 [[aou-proc-aou_l3_late_adv_test]]

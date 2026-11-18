@@ -631,7 +631,7 @@
 | `aou_reg_access_test.pclk_ps-1013` | `aou_reg_access_test` | `+pclk_ps=1013` | 1 |  | 11.17 | 
 |===
 ==== L3 protocol-model unit bench (no DUT)
-===== `testlists/l3_unit.toml` (13 scenarios)
+===== `testlists/l3_unit.toml` (14 scenarios)
 [cols="3,2,2,1,1,2,2",options="header"]
 |===
 | Scenario | Test class | Arguments | Seeds | Target | Plan items | Expected failure
@@ -642,6 +642,7 @@
 | `aou_l3_inject_test` | `aou_l3_inject_test` |  | 1 |  |  | 
 | `aou_l3_inject_test.L3_INJECT-req_after_dreq` | `aou_l3_inject_test` | `+L3_INJECT=req_after_dreq` | 1 |  |  | 
 | `aou_l3_inject_test.L3_INJECT-crd_in_disabled` | `aou_l3_inject_test` | `+L3_INJECT=crd_in_disabled` | 1 |  |  | 
+| `aou_l3_inject_test.L3_INJECT-rd_dlen` | `aou_l3_inject_test` | `+L3_INJECT=rd_dlen` | 1 |  |  | 
 | `aou_l3_late_adv_test` | `aou_l3_late_adv_test` |  | 1-3 |  |  | 
 | `aou_l3_link_test` | `aou_l3_link_test` |  | 1 |  |  | 
 | `aou_l3_credit_test.L3_SPEC-v0.8` | `aou_l3_credit_test` | `+L3_SPEC=v0.8` | 1 |  |  | 

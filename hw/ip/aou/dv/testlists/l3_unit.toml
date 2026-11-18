@@ -63,6 +63,17 @@ tags = ["l3_unit"]
 run_modes = ["l3_unit"]
 args = ["+L3_INJECT=crd_in_disabled"]
 
+# AOU-R13 is held by the protocol model, not AOU_FDI_CHECKER: the responder
+# answers a read with ReadData1024 although its ARSIZE needs less, and the
+# requesting model must report the size mismatch (5.7).
+[[tests]]
+name = "aou_l3_inject_test.L3_INJECT-rd_dlen"
+module = { uvm = "aou_l3_inject_test" }
+seed = 1
+tags = ["l3_unit"]
+run_modes = ["l3_unit"]
+args = ["+L3_INJECT=rd_dlen"]
+
 # Credits that cross the final DeactivateAck in both directions: each model
 # advertises request credit until it is DISABLED and holds some back to send
 # behind its own DeactivateReq. Neither AOU_FDI_CHECKER nor the receiving model
@@ -119,7 +130,7 @@ run_modes = ["l3_unit"]
 
 [[groups]]
 name = "l3_unit"
-expected_count = 13
+expected_count = 14
 tests = [
   "aou_l3_codec_test",
   "aou_l3_credit_test",
@@ -128,6 +139,7 @@ tests = [
   "aou_l3_inject_test",
   "aou_l3_inject_test.L3_INJECT-req_after_dreq",
   "aou_l3_inject_test.L3_INJECT-crd_in_disabled",
+  "aou_l3_inject_test.L3_INJECT-rd_dlen",
   "aou_l3_late_adv_test",
   "aou_l3_link_test",
   "aou_l3_credit_test.L3_SPEC-v0.8",
@@ -155,7 +167,7 @@ tests = [
 
 [[groups]]
 name = "all"
-expected_count = 13
+expected_count = 14
 tests = [
   "aou_l3_codec_test",
   "aou_l3_credit_test",
@@ -164,6 +176,7 @@ tests = [
   "aou_l3_inject_test",
   "aou_l3_inject_test.L3_INJECT-req_after_dreq",
   "aou_l3_inject_test.L3_INJECT-crd_in_disabled",
+  "aou_l3_inject_test.L3_INJECT-rd_dlen",
   "aou_l3_late_adv_test",
   "aou_l3_link_test",
   "aou_l3_credit_test.L3_SPEC-v0.8",

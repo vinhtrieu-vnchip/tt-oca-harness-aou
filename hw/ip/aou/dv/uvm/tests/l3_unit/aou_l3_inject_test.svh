@@ -18,7 +18,11 @@
 //   crd_in_disabled  ReadData credit from B after B's own DeactivateAck
 //                    completed the teardown
 //                                         AOU-R29 (checker), AOU-R26 (A)
-// The last two keep the deactivation windows honest: ReadData/WriteResp may
+//   rd_dlen    ReadData1024 for an ARSIZE that needs less, which only the
+//              receiving model can hold (5.7)
+//                                         AOU-R13 (A; not an AOU_FDI_CHECKER rule)
+// The two deactivation injections, req_after_dreq and crd_in_disabled, keep
+// the deactivation windows honest: ReadData/WriteResp may
 // follow one's own DeactivateReq and every credit one's own DeactivateAck
 // (v0.8 8.4, MAS 7.3.1), but requests stop at the DeactivateReq and credits
 // at DISABLED. B deactivates so that its own DeactivateAck is the last one: it
@@ -33,6 +37,12 @@ class aou_l3_inject_test extends aou_l3_unit_env_test;
   string       rule;
   bit          self_check;
   bit          rx_check;
+  // A rule held by the protocol model alone is not an AOU_FDI_CHECKER rule: the
+  // FDI checker must not be required to report it (AOU-R13).
+  bit          fdi_check = 1'b1;
+  // The class that has to report `rule`, when that is narrower than rx_check's
+  // "the unpacker or the receiving model".
+  string       prim_src = "";
   string       also[$];
 
   function new(string name, uvm_component parent);
@@ -68,6 +78,15 @@ class aou_l3_inject_test extends aou_l3_unit_env_test;
         rule = "AOU-R29";
         rx_check = 1'b0;
         also.push_back("AOU-R26");
+      end
+      "rd_dlen": begin
+        rule = "AOU-R13";
+        fdi_check = 1'b0;             // 5.7 is the model's rule, not the FDI checker's
+        prim_src = "aou_l3_model";    // the receiving model must report it
+        rx_check = 1'b0;              // prim_src states that source exactly
+        // Active before the traffic: the wrong size has to answer a ReadReq
+        // whose ARSIZE needs less, and every read the generators issue is one.
+        b.inj_rd_dl = 1'b1;
       end
       default: `uvm_fatal(get_type_name(), {"unknown +L3_INJECT=", inject})
     endcase
@@ -151,6 +170,7 @@ class aou_l3_inject_test extends aou_l3_unit_env_test;
         b.model.pk.inj_empty = 1'b1;
         b.model.kick();
       end
+      "rd_dlen": ;   // the wrong size rides on the traffic, nothing extra to send
       default: begin
         aou_l3_overgrant_seq s = aou_l3_overgrant_seq::type_id::create("s");
         s.cls = AOU_CC_RDATA;
@@ -162,8 +182,12 @@ class aou_l3_inject_test extends aou_l3_unit_env_test;
 
   function void check_phase(uvm_phase phase);
     super.check_phase(phase);
-    expect_true(chk.count(rule, "aou_fdi_chk_adapter") > 0,
-                $sformatf("AOU_FDI_CHECKER reports %s for %s", rule, inject));
+    if (fdi_check)
+      expect_true(chk.count(rule, "aou_fdi_chk_adapter") > 0,
+                  $sformatf("AOU_FDI_CHECKER reports %s for %s", rule, inject));
+    if (prim_src != "")
+      expect_true(chk.count(rule, prim_src) > 0,
+                  $sformatf("%s reports %s for %s", prim_src, rule, inject));
     foreach (also[i])
       expect_true(chk.count(also[i]) > 0, $sformatf("receiving model reports %s for %s",
                                                      also[i], inject));

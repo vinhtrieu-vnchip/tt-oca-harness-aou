@@ -39,9 +39,14 @@ class aou_l3_agent extends uvm_component;
   int unsigned      reads_done;
   bit               warned_no_l4a;
   int unsigned      resp_epoch;   // bumped by reset_flush(); older responses are dropped
+  // AOU-R13 negative test: answer every read with ReadData1024, whatever its
+  // ARSIZE needs (5.7). Oversized rather than short so the payload's low bytes
+  // stay correct and only the size rule is broken.
+  bit               inj_rd_dl;
 
   function new(string name, uvm_component parent);
     super.new(name, parent);
+    inj_rd_dl = 1'b0;   // default; the AOU-R13 negative test turns it on
   endfunction
 
   function void build_phase(uvm_phase phase);
@@ -273,7 +278,7 @@ class aou_l3_agent extends uvm_component;
       aou_msg_rdata d = aou_msg_rdata::type_id::create("d");
       d.rp = cfg.dest_rp[rq.rp];
       d.id = rq.id;
-      d.dlength = aou_dl_for_size(rq.size);
+      d.dlength = inj_rd_dl ? AOU_DL_1024 : aou_dl_for_size(rq.size);
       d.data = data[i];
       d.resp = (i < resp.size()) ? resp[i] : 2'b00;
       d.flex = (i < flex.size()) ? flex[i] : 16'h0;  // the remote subordinate's RUSER
